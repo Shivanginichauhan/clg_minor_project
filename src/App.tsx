@@ -4,10 +4,9 @@ import { AuthProvider, useAuth } from './contexts/AuthContext.js';
 import { ThemeProvider } from './contexts/ThemeContext.js';
 import { ProtectedRoute } from './components/auth/ProtectedRoute.js';
 import { DashboardLayout } from './components/layout/DashboardLayout.js';
-import { HomePage } from './pages/common/HomePage.js';
-
 
 // ── Lazy-loaded page bundles (split by route) ──────────────────────────────
+const HomePage               = lazy(() => import('./pages/common/HomePage.js').then(m => ({ default: m.HomePage })));
 // Auth
 const LoginPage              = lazy(() => import('./pages/auth/LoginPage.js').then(m => ({ default: m.LoginPage })));
 const SignupPage             = lazy(() => import('./pages/auth/SignupPage.js').then(m => ({ default: m.SignupPage })));
