@@ -9,10 +9,15 @@ import {
   ArrowLeft,
   KeyRound,
   ShieldCheck,
-  Building2
+  Building2,
+  Timer,
+  Ban
 } from 'lucide-react';
 import { Footer } from '../../components/common/Footer.js';
 import { UniversityCrest } from '../../components/common/UniversityCrest.js';
+import { rateLimitService } from '../../services/rateLimitService.js';
+import { captchaService } from '../../services/captchaService.js';
+import { DynamicCaptcha } from '../../components/common/DynamicCaptcha.js';
 
 export const ForgotPasswordPage: React.FC = () => {
   const { resetPassword } = useAuth();
@@ -21,17 +26,42 @@ export const ForgotPasswordPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
+  // Dynamic CAPTCHA & Rate Limiting state
+  const [challengeId, setChallengeId] = useState('');
+  const [captchaInput, setCaptchaInput] = useState('');
+  const [captchaError, setCaptchaError] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
+    // 1. Check Rate Limit
+    const rateStatus = rateLimitService.checkLimit('auth:forgot-password', email || 'client_global');
+    if (rateStatus.isLocked) {
+      setError(`Password reset requests temporarily suspended due to rate limiting. Please retry in ${rateStatus.lockRemainingSeconds} seconds.`);
+      return;
+    }
+
+    // 2. Validate CAPTCHA with Redis TTL
+    if (challengeId) {
+      const validation = captchaService.validate(challengeId, captchaInput);
+      if (!validation.isValid) {
+        setCaptchaError(true);
+        setError(validation.error || 'Incorrect security verification challenge answer.');
+        rateLimitService.recordAttempt('auth:forgot-password', email || 'client_global');
+        return;
+      }
+    }
+
+    setLoading(true);
     const { error: err } = await resetPassword(email);
     setLoading(false);
 
     if (err) {
+      rateLimitService.recordAttempt('auth:forgot-password', email || 'client_global');
       setError(err.message || 'Unable to process password reset request. Please check your email address.');
     } else {
+      rateLimitService.resetLimit('auth:forgot-password', email || 'client_global');
       setSubmitted(true);
     }
   };
@@ -121,6 +151,17 @@ export const ForgotPasswordPage: React.FC = () => {
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   </div>
                 </div>
+
+                {/* Dynamic CAPTCHA with Redis TTL */}
+                <DynamicCaptcha
+                  onChallengeChange={(id) => setChallengeId(id)}
+                  value={captchaInput}
+                  onChange={(val) => {
+                    setCaptchaInput(val);
+                    setCaptchaError(false);
+                  }}
+                  hasError={captchaError}
+                />
 
                 <button
                   type="submit"

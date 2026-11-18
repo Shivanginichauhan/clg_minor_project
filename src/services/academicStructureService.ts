@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
+import { redis } from '../lib/redisCache.js';
 import {
   Department,
   Program,
@@ -112,6 +113,10 @@ export const academicStructureService = {
   // DEPARTMENTS
   // ==========================================
   getDepartments: async (): Promise<Department[]> => {
+    // 1. In-Memory Redis Cache Hit with TTL
+    const cached = redis.get<Department[]>('cache:departments');
+    if (cached) return cached;
+
     let localDepts = getStored<Department>(STORAGE_KEYS.DEPARTMENTS, initialDepartments);
 
     if (isSupabaseConfigured) {
@@ -127,6 +132,8 @@ export const academicStructureService = {
           });
           const merged = Array.from(remoteMap.values());
           setStored(STORAGE_KEYS.DEPARTMENTS, merged);
+          // Cache in Redis with 300s TTL
+          redis.setex('cache:departments', 300, merged);
           return merged;
         }
       } catch (e) {
@@ -134,6 +141,7 @@ export const academicStructureService = {
       }
     }
 
+    redis.setex('cache:departments', 300, localDepts);
     return localDepts;
   },
 
@@ -192,6 +200,7 @@ export const academicStructureService = {
       role: 'administrator',
     });
 
+    redis.del('cache:departments');
     return newDept;
   },
 
@@ -245,6 +254,7 @@ export const academicStructureService = {
       nextList.unshift(updatedDept);
     }
     setStored(STORAGE_KEYS.DEPARTMENTS, nextList);
+    redis.del('cache:departments');
 
     return updatedDept;
   },
@@ -259,6 +269,7 @@ export const academicStructureService = {
     }
     const currentList = getStored<Department>(STORAGE_KEYS.DEPARTMENTS, initialDepartments);
     setStored(STORAGE_KEYS.DEPARTMENTS, currentList.filter((d) => d.id !== id));
+    redis.del('cache:departments');
     return true;
   },
 
@@ -266,6 +277,10 @@ export const academicStructureService = {
   // PROGRAMS
   // ==========================================
   getPrograms: async (departmentId?: string): Promise<Program[]> => {
+    const cacheKey = `cache:programs:${departmentId || 'all'}`;
+    const cached = redis.get<Program[]>(cacheKey);
+    if (cached) return cached;
+
     let localProgs = getStored<Program>(STORAGE_KEYS.PROGRAMS, initialPrograms);
     const depts = getStored<Department>(STORAGE_KEYS.DEPARTMENTS, initialDepartments);
     const deptMap = new Map(depts.map((d) => [d.id, d]));
@@ -297,10 +312,11 @@ export const academicStructureService = {
       department: (p as any).department || deptMap.get(p.department_id),
     }));
 
-    if (departmentId && departmentId !== 'all') {
-      return localProgs.filter((p) => p.department_id === departmentId);
-    }
-    return localProgs;
+    const res = departmentId && departmentId !== 'all'
+      ? localProgs.filter((p) => p.department_id === departmentId)
+      : localProgs;
+    redis.setex(cacheKey, 300, res);
+    return res;
   },
 
   createProgram: async (prog: Omit<Program, 'id' | 'created_at' | 'updated_at'>): Promise<Program> => {
@@ -344,6 +360,7 @@ export const academicStructureService = {
     const currentList = getStored<Program>(STORAGE_KEYS.PROGRAMS, initialPrograms);
     const updatedList = [newProg, ...currentList.filter((p) => p.id !== newProg.id)];
     setStored(STORAGE_KEYS.PROGRAMS, updatedList);
+    redis.keys('cache:programs*').forEach((k) => redis.del(k));
 
     return newProg;
   },
@@ -398,6 +415,7 @@ export const academicStructureService = {
     const nextList = currentList.map((p) => (p.id === id ? updatedProg : p));
     if (!nextList.some((p) => p.id === id)) nextList.unshift(updatedProg);
     setStored(STORAGE_KEYS.PROGRAMS, nextList);
+    redis.keys('cache:programs*').forEach((k) => redis.del(k));
 
     return updatedProg;
   },
@@ -412,6 +430,7 @@ export const academicStructureService = {
     }
     const currentList = getStored<Program>(STORAGE_KEYS.PROGRAMS, initialPrograms);
     setStored(STORAGE_KEYS.PROGRAMS, currentList.filter((p) => p.id !== id));
+    redis.keys('cache:programs*').forEach((k) => redis.del(k));
     return true;
   },
 

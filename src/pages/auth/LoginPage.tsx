@@ -22,68 +22,14 @@ import {
 } from 'lucide-react';
 import { Footer } from '../../components/common/Footer.js';
 import { UniversityCrest } from '../../components/common/UniversityCrest.js';
+import { rateLimitService } from '../../services/rateLimitService.js';
+import { captchaService } from '../../services/captchaService.js';
+import { DynamicCaptcha } from '../../components/common/DynamicCaptcha.js';
+import { redis } from '../../lib/redisCache.js';
 
 // ─── Rate-limiting constants ────────────────────────────────────────────────
-const MAX_ATTEMPTS = 3;       // lockout after 3 failures
+const MAX_ATTEMPTS = 5;       // 5 attempts per sliding window
 const LOCKOUT_SECONDS = 300;  // 5-minute lockout
-const STORAGE_KEY = 'ueams_login_attempt';
-
-interface AttemptRecord {
-  count: number;
-  lockedUntil: number | null;   // epoch ms
-  lastAttempt: number;
-}
-
-const getAttemptRecord = (): AttemptRecord => {
-  try {
-    const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
-    if (raw) return JSON.parse(raw) as AttemptRecord;
-  } catch {}
-  return { count: 0, lockedUntil: null, lastAttempt: 0 };
-};
-
-const saveAttemptRecord = (r: AttemptRecord) => {
-  try {
-    if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(r));
-  } catch {}
-};
-
-const clearAttemptRecord = () => {
-  try {
-    if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEY);
-  } catch {}
-};
-
-// ─── Harder multi-step math CAPTCHA ─────────────────────────────────────────
-const generateCaptcha = () => {
-  const type = Math.floor(Math.random() * 4); // 4 difficulty patterns
-
-  if (type === 0) {
-    // Pattern: (a × b) + c
-    const a = Math.floor(Math.random() * 9) + 2;   // 2–10
-    const b = Math.floor(Math.random() * 9) + 2;
-    const c = Math.floor(Math.random() * 20) + 5;  // 5–24
-    return { question: `(${a} × ${b}) + ${c} = ?`, answer: a * b + c };
-  } else if (type === 1) {
-    // Pattern: a² + b
-    const a = Math.floor(Math.random() * 7) + 3;   // 3–9
-    const b = Math.floor(Math.random() * 15) + 5;  // 5–19
-    return { question: `${a}² + ${b} = ?`, answer: a * a + b };
-  } else if (type === 2) {
-    // Pattern: (a + b) × c
-    const a = Math.floor(Math.random() * 12) + 3;  // 3–14
-    const b = Math.floor(Math.random() * 10) + 2;  // 2–11
-    const c = Math.floor(Math.random() * 5)  + 2;  // 2–6
-    return { question: `(${a} + ${b}) × ${c} = ?`, answer: (a + b) * c };
-  } else {
-    // Pattern: a × b − c
-    const a = Math.floor(Math.random() * 8) + 3;   // 3–10
-    const b = Math.floor(Math.random() * 8) + 3;
-    const product = a * b;
-    const c = Math.floor(Math.random() * Math.min(product - 1, 20)) + 3;
-    return { question: `${a} × ${b} − ${c} = ?`, answer: product - c };
-  }
-};
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export const LoginPage: React.FC = () => {
@@ -102,10 +48,10 @@ export const LoginPage: React.FC = () => {
   // rate-limiting state
   const [attemptCount, setAttemptCount] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
-  const [lockCountdown, setLockCountdown] = useState(0);  // seconds remaining
+  const [lockCountdown, setLockCountdown] = useState(0); // seconds remaining
 
-  // CAPTCHA state
-  const [captcha, setCaptcha] = useState(generateCaptcha);
+  // Dynamic CAPTCHA state
+  const [challengeId, setChallengeId] = useState<string>('');
   const [captchaInput, setCaptchaInput] = useState('');
   const [captchaError, setCaptchaError] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
@@ -135,20 +81,17 @@ export const LoginPage: React.FC = () => {
   const from = (location.state as any)?.from?.pathname;
   const loggedOut = (location.state as any)?.loggedOut;
 
-  // ── Initialise rate-limit state from persistent store ──────────────────────
+  // ── Initialise rate-limit state from Redis store ─────────────────────────
   useEffect(() => {
-    const rec = getAttemptRecord();
-    const now = Date.now();
-    if (rec.lockedUntil && rec.lockedUntil > now) {
+    const status = rateLimitService.checkLimit('auth:login', email || 'client_global');
+    if (status.isLocked) {
       setIsLocked(true);
-      setAttemptCount(rec.count);
-      setLockCountdown(Math.ceil((rec.lockedUntil - now) / 1000));
-    } else if (rec.lockedUntil && rec.lockedUntil <= now) {
-      clearAttemptRecord();
+      setLockCountdown(status.lockRemainingSeconds);
+      setAttemptCount(status.currentAttempts);
     } else {
-      setAttemptCount(rec.count);
+      setAttemptCount(status.currentAttempts);
     }
-  }, []);
+  }, [email]);
 
   // ── Countdown ticker ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -159,21 +102,22 @@ export const LoginPage: React.FC = () => {
           clearInterval(id);
           setIsLocked(false);
           setAttemptCount(0);
-          clearAttemptRecord();
+          rateLimitService.resetLimit('auth:login', email || 'client_global');
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [isLocked, lockCountdown]);
+  }, [isLocked, lockCountdown, email]);
 
   // ── Clear email/pass on page visit ─────────────────────────────────────────
   useEffect(() => {
     setEmail('');
     setPassword('');
     setPasswordTouched(false);
-    refreshCaptcha();
+    setCaptchaInput('');
+    setCaptchaError(false);
   }, [location.pathname, location.key]);
 
   // ── Auto-redirect if already authenticated ─────────────────────────────────
@@ -203,13 +147,6 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  // ── Refresh CAPTCHA ─────────────────────────────────────────────────────────
-  const refreshCaptcha = useCallback(() => {
-    setCaptcha(generateCaptcha());
-    setCaptchaInput('');
-    setCaptchaError(false);
-  }, []);
-
   // ── Format mm:ss countdown ─────────────────────────────────────────────────
   const formatCountdown = (secs: number) => {
     const m = Math.floor(secs / 60).toString().padStart(2, '0');
@@ -222,66 +159,72 @@ export const LoginPage: React.FC = () => {
     e.preventDefault();
     setError(null);
 
-    // Block if locked out
-    if (isLocked) {
-      setError(`Account temporarily locked. Please wait ${formatCountdown(lockCountdown)}.`);
+    // 1. Check Rate Limit
+    const rateStatus = rateLimitService.checkLimit('auth:login', email || 'client_global');
+    if (rateStatus.isLocked) {
+      setIsLocked(true);
+      setLockCountdown(rateStatus.lockRemainingSeconds);
+      setError(`Account temporarily locked due to excessive failed attempts. Please wait ${formatCountdown(rateStatus.lockRemainingSeconds)}.`);
       return;
     }
 
-    // Validate password and CAPTCHA
+    // 2. Validate password
     if (!password) {
       setPasswordTouched(true);
       setError('Please enter your security password.');
       return;
     }
 
+    // 3. Validate CAPTCHA with Redis TTL
     if (captchaInput.trim() === '') {
       setPasswordTouched(true);
       setCaptchaError(true);
-      setError('Please solve the security challenge before signing in.');
+      setError('Please solve the security verification challenge before signing in.');
       return;
     }
 
-    if (parseInt(captchaInput.trim(), 10) !== captcha.answer) {
-      setPasswordTouched(true);
-      setCaptchaError(true);
-      setError('Incorrect security verification answer. Please try again.');
-      refreshCaptcha();
-      return;
+    if (challengeId) {
+      const validation = captchaService.validate(challengeId, captchaInput);
+      if (!validation.isValid) {
+        setPasswordTouched(true);
+        setCaptchaError(true);
+        setError(validation.error || 'Incorrect security verification answer. Please try again.');
+        // Increment attempts on wrong captcha
+        const updated = rateLimitService.recordAttempt('auth:login', email || 'client_global');
+        if (updated.isLocked) {
+          setIsLocked(true);
+          setLockCountdown(updated.lockRemainingSeconds);
+          setAttemptCount(updated.currentAttempts);
+        } else {
+          setAttemptCount(updated.currentAttempts);
+        }
+        return;
+      }
     }
 
+    // 4. Authenticate
     setLoading(true);
     const { error: err, role: resolvedRole } = await signIn(email, password);
     setLoading(false);
 
     if (err) {
-      // ── On failure: increment attempt counter ──
-      const rec = getAttemptRecord();
-      const newCount = rec.count + 1;
-
-      if (newCount >= MAX_ATTEMPTS) {
-        const lockedUntil = Date.now() + LOCKOUT_SECONDS * 1000;
-        saveAttemptRecord({ count: newCount, lockedUntil, lastAttempt: Date.now() });
+      const updated = rateLimitService.recordAttempt('auth:login', email || 'client_global');
+      if (updated.isLocked) {
         setIsLocked(true);
-        setLockCountdown(LOCKOUT_SECONDS);
-        setAttemptCount(newCount);
-        setError(
-          `Too many failed attempts. Your account access is locked for ${LOCKOUT_SECONDS / 60} minutes for security.`
-        );
+        setLockCountdown(updated.lockRemainingSeconds);
+        setAttemptCount(updated.currentAttempts);
+        setError(`Too many failed attempts. Account locked for ${Math.round(updated.lockRemainingSeconds / 60)} minutes.`);
       } else {
-        saveAttemptRecord({ count: newCount, lockedUntil: null, lastAttempt: Date.now() });
-        setAttemptCount(newCount);
-        const remaining = MAX_ATTEMPTS - newCount;
+        setAttemptCount(updated.currentAttempts);
+        const rem = updated.remainingAttempts;
         setError(
-          remaining > 0
-            ? `Incorrect credentials. ${remaining} attempt${remaining > 1 ? 's' : ''} remaining before temporary lockout.`
+          rem > 0
+            ? `Incorrect credentials. ${rem} attempt${rem > 1 ? 's' : ''} remaining before temporary lockout.`
             : 'Incorrect credentials.'
         );
-        refreshCaptcha();
       }
     } else {
-      // ── On success: clear rate-limit record ──
-      clearAttemptRecord();
+      rateLimitService.resetLimit('auth:login', email || 'client_global');
       const targetRole = resolvedRole || role || 'administrator';
       handleRedirect(targetRole);
     }
@@ -291,8 +234,14 @@ export const LoginPage: React.FC = () => {
     setEmail(roleEmail);
     setPassword(rolePwd);
     setPasswordTouched(true);
-    // Automatically fill current captcha answer for smooth demo experience
-    setCaptchaInput(String(captcha.answer));
+
+    // Retrieve active challenge answer from Redis for quick demo login
+    if (challengeId) {
+      const stored = redis.get<{ answer: string }>(`captcha:${challengeId}`);
+      if (stored?.answer) {
+        setCaptchaInput(stored.answer);
+      }
+    }
     setCaptchaError(false);
   };
 
@@ -545,62 +494,17 @@ export const LoginPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* ── Harder multi-step math CAPTCHA ──────────────────────── */}
+                  {/* ── Dynamic Multi-Mode CAPTCHA with Redis TTL ────────── */}
                   {showCaptcha && (
-                    <div
-                      className={`p-4 rounded-xl border-2 transition-colors ${
-                        captchaError ? 'border-red-400 bg-red-50' : 'border-amber-300 bg-amber-50/60'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                          <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">
-                            Security Challenge Required
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={refreshCaptcha}
-                          title="Generate new challenge"
-                          className="text-amber-600 hover:text-amber-800 transition cursor-pointer"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 bg-white border border-amber-300 rounded-lg px-4 py-2.5 text-center select-none shadow-xs">
-                          <span className="font-mono text-base sm:text-lg font-extrabold text-[#0F2747] tracking-widest">
-                            {captcha.question}
-                          </span>
-                        </div>
-
-                        <input
-                          type="number"
-                          value={captchaInput}
-                          onChange={(e) => {
-                            setCaptchaInput(e.target.value);
-                            setCaptchaError(false);
-                          }}
-                          placeholder="Ans"
-                          className={`w-20 text-center bg-white border rounded-lg px-2 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 transition ${
-                            captchaError
-                              ? 'border-red-400 text-red-700 focus:ring-red-300'
-                              : 'border-amber-300 text-[#0F2747] focus:ring-amber-300'
-                          }`}
-                        />
-                      </div>
-
-                      {captchaError && (
-                        <p className="text-[11px] text-red-600 font-medium mt-1.5">
-                          Incorrect answer. A new challenge has been generated.
-                        </p>
-                      )}
-                      <p className="text-[10px] text-amber-700/80 mt-1.5">
-                        Solve the mathematical challenge above to authenticate.
-                      </p>
-                    </div>
+                    <DynamicCaptcha
+                      onChallengeChange={(id) => setChallengeId(id)}
+                      value={captchaInput}
+                      onChange={(val) => {
+                        setCaptchaInput(val);
+                        setCaptchaError(false);
+                      }}
+                      hasError={captchaError}
+                    />
                   )}
 
                   <div className="flex items-center justify-between pt-1">

@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js';
+import { rateLimitService } from './rateLimitService.js';
 
 // ==========================================
 // 1. BUDGET & SCHOLARSHIP ALLOCATION
@@ -341,10 +342,14 @@ export class DeanService {
   }
 
   verifyDeanPin(inputPin: string, userId?: string): { valid: boolean; error?: string; remainingAttempts?: number } {
-    const now = Date.now();
-    if (this.lockoutUntil > now) {
-      const waitSeconds = Math.ceil((this.lockoutUntil - now) / 1000);
-      return { valid: false, error: `Security lockout active due to excessive failed attempts. Try again in ${waitSeconds}s.` };
+    const ident = userId || 'dean_statutory';
+    const rateStatus = rateLimitService.checkLimit('dean:statutory-pin', ident);
+
+    if (rateStatus.isLocked) {
+      return {
+        valid: false,
+        error: `Security lockout active due to excessive failed PIN attempts. Try again in ${rateStatus.lockRemainingSeconds}s.`,
+      };
     }
 
     if (!inputPin || inputPin.trim().length === 0) {
@@ -353,15 +358,21 @@ export class DeanService {
 
     const actualPin = this.getSecurityPin(userId);
     if (inputPin.trim() === actualPin) {
-      this.failedAttempts = 0;
+      rateLimitService.resetLimit('dean:statutory-pin', ident);
       return { valid: true };
     } else {
-      this.failedAttempts += 1;
-      if (this.failedAttempts >= 3) {
-        this.lockoutUntil = now + 60000; // 60s lockout
-        return { valid: false, error: 'Too many incorrect attempts. Security lockout initiated for 60 seconds.' };
+      const updated = rateLimitService.recordAttempt('dean:statutory-pin', ident);
+      if (updated.isLocked) {
+        return {
+          valid: false,
+          error: `Too many incorrect attempts. Security lockout initiated for ${updated.lockRemainingSeconds} seconds.`,
+        };
       }
-      return { valid: false, error: 'Invalid Dean Authorization PIN.', remainingAttempts: 3 - this.failedAttempts };
+      return {
+        valid: false,
+        error: 'Invalid Dean Authorization PIN.',
+        remainingAttempts: updated.remainingAttempts,
+      };
     }
   }
 

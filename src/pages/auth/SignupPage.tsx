@@ -27,6 +27,9 @@ import {
 } from 'lucide-react';
 import { Footer } from '../../components/common/Footer.js';
 import { UniversityCrest } from '../../components/common/UniversityCrest.js';
+import { rateLimitService } from '../../services/rateLimitService.js';
+import { captchaService } from '../../services/captchaService.js';
+import { DynamicCaptcha } from '../../components/common/DynamicCaptcha.js';
 
 interface RoleOption {
   id: UserRole;
@@ -121,6 +124,11 @@ export const SignupPage: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
 
+  // Dynamic CAPTCHA & Rate Limiting state
+  const [challengeId, setChallengeId] = useState('');
+  const [captchaInput, setCaptchaInput] = useState('');
+  const [captchaError, setCaptchaError] = useState(false);
+
   useEffect(() => {
     academicStructureService.getDepartments().then((depts) => {
       setDepartments(depts);
@@ -168,6 +176,24 @@ export const SignupPage: React.FC = () => {
       return;
     }
 
+    // 1. Check Rate Limit
+    const rateStatus = rateLimitService.checkLimit('auth:signup', email || 'client_global');
+    if (rateStatus.isLocked) {
+      setError(`Account registrations temporarily suspended due to rate limiting. Please wait ${rateStatus.lockRemainingSeconds} seconds.`);
+      return;
+    }
+
+    // 2. Validate CAPTCHA with Redis TTL
+    if (challengeId) {
+      const validation = captchaService.validate(challengeId, captchaInput);
+      if (!validation.isValid) {
+        setCaptchaError(true);
+        setError(validation.error || 'Incorrect security verification challenge answer.');
+        rateLimitService.recordAttempt('auth:signup', email || 'client_global');
+        return;
+      }
+    }
+
     const hasUpper = /[A-Z]/.test(password);
     const hasNumber = /[0-9]/.test(password);
     const hasSpecial = /[^A-Za-z0-9]/.test(password);
@@ -208,10 +234,13 @@ export const SignupPage: React.FC = () => {
     setLoading(false);
 
     if (err) {
+      rateLimitService.recordAttempt('auth:signup', email || 'client_global');
       setError(err.message || 'Registration failed. Please check your details and try again.');
     } else if (needsEmailVerification) {
+      rateLimitService.resetLimit('auth:signup', email || 'client_global');
       setNeedsVerification(true);
     } else {
+      rateLimitService.resetLimit('auth:signup', email || 'client_global');
       setSuccess(true);
       const targetRole = createdRole || selectedRole;
       const targetPath = targetRole === 'administrator' ? '/admin/dashboard' : `/${targetRole}/dashboard`;
@@ -640,6 +669,19 @@ export const SignupPage: React.FC = () => {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Dynamic CAPTCHA with Redis TTL */}
+              <div className="pt-1">
+                <DynamicCaptcha
+                  onChallengeChange={(id) => setChallengeId(id)}
+                  value={captchaInput}
+                  onChange={(val) => {
+                    setCaptchaInput(val);
+                    setCaptchaError(false);
+                  }}
+                  hasError={captchaError}
+                />
               </div>
 
               {/* Submit Button */}
