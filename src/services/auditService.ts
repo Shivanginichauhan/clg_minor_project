@@ -61,13 +61,17 @@ export const auditService = {
           .select(`
             id,
             user_id,
+            user_name,
             role,
             action,
             entity_type,
             entity_id,
+            entity_name,
             description,
+            severity,
             ip_address,
-            created_at
+            created_at,
+            profile:profiles(full_name)
           `)
           .order('created_at', { ascending: false });
 
@@ -101,15 +105,15 @@ export const auditService = {
               timestamp: row.created_at,
               created_at: row.created_at,
               user_id: row.user_id || 'system',
-              user_name: row.user_name || (row.role ? `${row.role.toUpperCase()} User` : 'System Operator'),
+              user_name: row.user_name || row.profile?.full_name || (row.role ? `${row.role.toUpperCase()} User` : 'System Operator'),
               role: row.role || 'system',
               action: row.action as AuditActionType,
               entity_type: (row.entity_type || 'system') as AuditEntityType,
               entity_id: row.entity_id || '',
-              entity_name: row.entity_id || '',
+              entity_name: row.entity_name || row.entity_id || '',
               description: row.description || '',
               ip_address: row.ip_address || '127.0.0.1',
-              severity: derivedSeverity,
+              severity: row.severity || derivedSeverity,
             };
           });
         }
@@ -173,11 +177,14 @@ export const auditService = {
     try {
       await supabase.from('audit_logs').insert({
         user_id: event.user_id === 'system' ? null : event.user_id,
+        user_name: event.user_name || null,
         role: event.role || 'system',
         action: event.action,
         entity_type: event.entity_type || 'system',
         entity_id: event.entity_id || null,
+        entity_name: event.entity_name || null,
         description: event.description,
+        severity: event.severity || 'info',
         ip_address: event.ip_address || null,
         created_at: new Date().toISOString(),
       });

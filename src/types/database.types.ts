@@ -1,5 +1,5 @@
 export type UserRole = 'student' | 'faculty' | 'administrator' | 'dean';
-export type UserStatus = 'active' | 'inactive' | 'suspended';
+export type UserStatus = 'active' | 'inactive' | 'suspended' | 'graduated' | 'on_leave';
 export type ExamScheduleStatus = 'draft' | 'submitted' | 'approved' | 'published';
 export type MarksStatus = 'draft' | 'submitted' | 'verified' | 'locked';
 export type ResultStatus = 'draft' | 'pending_approval' | 'approved' | 'published';

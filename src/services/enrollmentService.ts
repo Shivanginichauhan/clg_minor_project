@@ -65,7 +65,7 @@ export const enrollmentService = {
             subject:subjects(*, department:departments(*), program:programs(*)),
             semester:semesters(*)
           `)
-          .eq('student_id', studentId);
+          .or(`student_id.eq.${studentId},student.user_id.eq.${studentId}`);
 
         if (!error && data && data.length > 0) {
           return data as unknown as EnrollmentWithDetails[];

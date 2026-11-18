@@ -34,9 +34,14 @@ export const RevaluationManagementPage: React.FC = () => {
   const [assignedEvaluator, setAssignedEvaluator] = useState<string>('External Valuation Board #2');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const loadData = () => {
-    const list = resultsService.getRevaluations();
-    setApplications(list);
+  const loadData = async () => {
+    try {
+      const list = await resultsService.getRevaluations();
+      setApplications(Array.isArray(list) ? list : []);
+    } catch (e) {
+      console.warn('[REVALUATION] Error fetching applications:', e);
+      setApplications([]);
+    }
   };
 
   useEffect(() => {
@@ -83,7 +88,7 @@ export const RevaluationManagementPage: React.FC = () => {
     loadData();
   };
 
-  const filteredApps = applications.filter((app) => {
+  const filteredApps = (applications || []).filter((app) => {
     if (statusFilter !== 'all' && app.status !== statusFilter) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -147,7 +152,7 @@ export const RevaluationManagementPage: React.FC = () => {
           <div>
             <span className="text-[#64748B] text-[10px] uppercase font-bold block">Pending Valuation</span>
             <span className="text-sm font-extrabold text-amber-600">
-              {applications.filter((a) => a.status === 'applied' || a.status === 'under_scrutiny').length} Cases
+              {(applications || []).filter((a) => a.status === 'applied' || a.status === 'under_scrutiny').length} Cases
             </span>
           </div>
         </div>

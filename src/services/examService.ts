@@ -10,6 +10,7 @@ import {
   StudentHallTicket,
   initialExaminations,
   initialExamSchedules,
+  initialExaminationRooms,
 } from '../data/mockExams.js';
 import { auditService } from './auditService.js';
 import { deanService } from './deanService.js';
@@ -314,32 +315,84 @@ export const examService = {
   // Rooms & Venues
   // ----------------------------------------------------
   async getRooms(): Promise<Room[]> {
-    if (!isSupabaseConfigured) return [];
-    try {
-      const { data, error } = await supabase.from('rooms').select('*').order('name');
-      if (error) return [];
-      return (data || []) as Room[];
-    } catch (e) {
-      return [];
+    const ROOMS_STORAGE_KEY = 'ueams_examination_rooms';
+    const getStoredRooms = (): Room[] => {
+      try {
+        const raw = typeof window !== 'undefined' ? localStorage.getItem(ROOMS_STORAGE_KEY) : null;
+        if (raw) return JSON.parse(raw);
+      } catch {}
+      return [...initialExaminationRooms];
+    };
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('rooms').select('*').order('name');
+        if (!error && data && data.length > 0) {
+          const mapped = data.map((r: any) => ({
+            ...r,
+            room_number: r.room_number || r.name,
+            building: r.building || r.block || 'Academic Block',
+            is_available: r.is_available ?? r.is_active ?? true,
+          }));
+          return mapped as Room[];
+        }
+      } catch (e) {
+        // fallback
+      }
     }
+    return getStoredRooms();
   },
 
-  async createRoom(room: { name: string; block?: string; floor?: number; capacity: number }): Promise<Room> {
-    if (!isSupabaseConfigured) throw new Error('Database is not configured.');
-    const { data, error } = await supabase
-      .from('rooms')
-      .insert({
-        name: room.name,
-        block: room.block || null,
-        floor: room.floor || 1,
-        capacity: room.capacity,
-        is_active: true,
-      })
-      .select()
-      .single();
+  async createRoom(room: { name?: string; room_number?: string; block?: string; building?: string; floor?: number; capacity: number }): Promise<Room> {
+    const ROOMS_STORAGE_KEY = 'ueams_examination_rooms';
+    const getStoredRooms = (): Room[] => {
+      try {
+        const raw = typeof window !== 'undefined' ? localStorage.getItem(ROOMS_STORAGE_KEY) : null;
+        if (raw) return JSON.parse(raw);
+      } catch {}
+      return [...initialExaminationRooms];
+    };
 
-    if (error) throw new Error(`Failed to create exam hall: ${error.message}`);
-    return data as Room;
+    const saveStoredRoom = (r: Room) => {
+      try {
+        const rooms = getStoredRooms().filter((it) => it.id !== r.id && (it as any).room_number !== (r as any).room_number);
+        rooms.push(r);
+        localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(rooms));
+      } catch {}
+    };
+
+    const roomNumber = room.room_number || room.name || `Hall-${Date.now()}`;
+    const building = room.building || room.block || 'Academic Block';
+    const newRoom: Room = {
+      id: `room-${Date.now()}`,
+      room_number: roomNumber,
+      name: roomNumber,
+      block: building,
+      building: building,
+      floor: room.floor || 1,
+      capacity: room.capacity || 60,
+      is_available: true,
+      created_at: new Date().toISOString(),
+    } as any;
+
+    saveStoredRoom(newRoom);
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data } = await supabase.from('rooms').insert({
+          name: roomNumber,
+          block: building,
+          floor: room.floor || 1,
+          capacity: room.capacity || 60,
+          is_active: true,
+        }).select().single();
+        if (data) return { ...newRoom, id: data.id };
+      } catch (e) {
+        console.warn('[ROOMS] Supabase insert note, saved locally:', e);
+      }
+    }
+
+    return newRoom;
   },
 
   // ----------------------------------------------------

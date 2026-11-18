@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -12,26 +12,103 @@ import {
   AlertCircle,
   ArrowRight,
   ShieldCheck,
-  Award,
   Sparkles,
-  BookOpen,
   CheckCircle2,
-  Users
+  HelpCircle,
+  Timer,
+  RefreshCw,
+  Ban,
+  AlertTriangle,
 } from 'lucide-react';
 import { Footer } from '../../components/common/Footer.js';
 import { UniversityCrest } from '../../components/common/UniversityCrest.js';
 
+// ─── Rate-limiting constants ────────────────────────────────────────────────
+const MAX_ATTEMPTS = 3;       // lockout after 3 failures
+const LOCKOUT_SECONDS = 300;  // 5-minute lockout
+const STORAGE_KEY = 'ueams_login_attempt';
+
+interface AttemptRecord {
+  count: number;
+  lockedUntil: number | null;   // epoch ms
+  lastAttempt: number;
+}
+
+const getAttemptRecord = (): AttemptRecord => {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+    if (raw) return JSON.parse(raw) as AttemptRecord;
+  } catch {}
+  return { count: 0, lockedUntil: null, lastAttempt: 0 };
+};
+
+const saveAttemptRecord = (r: AttemptRecord) => {
+  try {
+    if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(r));
+  } catch {}
+};
+
+const clearAttemptRecord = () => {
+  try {
+    if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEY);
+  } catch {}
+};
+
+// ─── Harder multi-step math CAPTCHA ─────────────────────────────────────────
+const generateCaptcha = () => {
+  const type = Math.floor(Math.random() * 4); // 4 difficulty patterns
+
+  if (type === 0) {
+    // Pattern: (a × b) + c
+    const a = Math.floor(Math.random() * 9) + 2;   // 2–10
+    const b = Math.floor(Math.random() * 9) + 2;
+    const c = Math.floor(Math.random() * 20) + 5;  // 5–24
+    return { question: `(${a} × ${b}) + ${c} = ?`, answer: a * b + c };
+  } else if (type === 1) {
+    // Pattern: a² + b
+    const a = Math.floor(Math.random() * 7) + 3;   // 3–9
+    const b = Math.floor(Math.random() * 15) + 5;  // 5–19
+    return { question: `${a}² + ${b} = ?`, answer: a * a + b };
+  } else if (type === 2) {
+    // Pattern: (a + b) × c
+    const a = Math.floor(Math.random() * 12) + 3;  // 3–14
+    const b = Math.floor(Math.random() * 10) + 2;  // 2–11
+    const c = Math.floor(Math.random() * 5)  + 2;  // 2–6
+    return { question: `(${a} + ${b}) × ${c} = ?`, answer: (a + b) * c };
+  } else {
+    // Pattern: a × b − c
+    const a = Math.floor(Math.random() * 8) + 3;   // 3–10
+    const b = Math.floor(Math.random() * 8) + 3;
+    const product = a * b;
+    const c = Math.floor(Math.random() * Math.min(product - 1, 20)) + 3;
+    return { question: `${a} × ${b} − ${c} = ?`, answer: product - c };
+  }
+};
+
+// ─── Component ───────────────────────────────────────────────────────────────
 export const LoginPage: React.FC = () => {
   const { signIn, user, role, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
+  // form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // rate-limiting state
+  const [attemptCount, setAttemptCount] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockCountdown, setLockCountdown] = useState(0);  // seconds remaining
+
+  // CAPTCHA state
+  const [captcha, setCaptcha] = useState(generateCaptcha);
+  const [captchaInput, setCaptchaInput] = useState('');
+  const [captchaError, setCaptchaError] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
 
   const loginContainerRef = useRef<HTMLElement>(null);
 
@@ -58,18 +135,52 @@ export const LoginPage: React.FC = () => {
   const from = (location.state as any)?.from?.pathname;
   const loggedOut = (location.state as any)?.loggedOut;
 
-  // Clear credentials whenever landing on login page
-  React.useEffect(() => {
+  // ── Initialise rate-limit state from persistent store ──────────────────────
+  useEffect(() => {
+    const rec = getAttemptRecord();
+    const now = Date.now();
+    if (rec.lockedUntil && rec.lockedUntil > now) {
+      setIsLocked(true);
+      setAttemptCount(rec.count);
+      setLockCountdown(Math.ceil((rec.lockedUntil - now) / 1000));
+    } else if (rec.lockedUntil && rec.lockedUntil <= now) {
+      clearAttemptRecord();
+    } else {
+      setAttemptCount(rec.count);
+    }
+  }, []);
+
+  // ── Countdown ticker ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isLocked || lockCountdown <= 0) return;
+    const id = setInterval(() => {
+      setLockCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(id);
+          setIsLocked(false);
+          setAttemptCount(0);
+          clearAttemptRecord();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isLocked, lockCountdown]);
+
+  // ── Clear email/pass on page visit ─────────────────────────────────────────
+  useEffect(() => {
     setEmail('');
     setPassword('');
+    setPasswordTouched(false);
+    refreshCaptcha();
   }, [location.pathname, location.key]);
 
-  const getDashboardPath = (userRole: UserRole): string => {
-    return userRole === 'administrator' ? '/admin/dashboard' : `/${userRole}/dashboard`;
-  };
+  // ── Auto-redirect if already authenticated ─────────────────────────────────
+  const getDashboardPath = (userRole: UserRole): string =>
+    userRole === 'administrator' ? '/admin/dashboard' : `/${userRole}/dashboard`;
 
-  // Auto-redirect if user is already authenticated
-  React.useEffect(() => {
+  useEffect(() => {
     if (!authLoading && user && role && !loggedOut) {
       navigate(getDashboardPath(role), { replace: true });
     }
@@ -92,17 +203,85 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  // ── Refresh CAPTCHA ─────────────────────────────────────────────────────────
+  const refreshCaptcha = useCallback(() => {
+    setCaptcha(generateCaptcha());
+    setCaptchaInput('');
+    setCaptchaError(false);
+  }, []);
+
+  // ── Format mm:ss countdown ─────────────────────────────────────────────────
+  const formatCountdown = (secs: number) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  // ── Submit handler with rate limiting + CAPTCHA ────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
+    // Block if locked out
+    if (isLocked) {
+      setError(`Account temporarily locked. Please wait ${formatCountdown(lockCountdown)}.`);
+      return;
+    }
+
+    // Validate password and CAPTCHA
+    if (!password) {
+      setPasswordTouched(true);
+      setError('Please enter your security password.');
+      return;
+    }
+
+    if (captchaInput.trim() === '') {
+      setPasswordTouched(true);
+      setCaptchaError(true);
+      setError('Please solve the security challenge before signing in.');
+      return;
+    }
+
+    if (parseInt(captchaInput.trim(), 10) !== captcha.answer) {
+      setPasswordTouched(true);
+      setCaptchaError(true);
+      setError('Incorrect security verification answer. Please try again.');
+      refreshCaptcha();
+      return;
+    }
+
+    setLoading(true);
     const { error: err, role: resolvedRole } = await signIn(email, password);
     setLoading(false);
 
     if (err) {
-      setError(err.message || 'Email or password is incorrect.');
+      // ── On failure: increment attempt counter ──
+      const rec = getAttemptRecord();
+      const newCount = rec.count + 1;
+
+      if (newCount >= MAX_ATTEMPTS) {
+        const lockedUntil = Date.now() + LOCKOUT_SECONDS * 1000;
+        saveAttemptRecord({ count: newCount, lockedUntil, lastAttempt: Date.now() });
+        setIsLocked(true);
+        setLockCountdown(LOCKOUT_SECONDS);
+        setAttemptCount(newCount);
+        setError(
+          `Too many failed attempts. Your account access is locked for ${LOCKOUT_SECONDS / 60} minutes for security.`
+        );
+      } else {
+        saveAttemptRecord({ count: newCount, lockedUntil: null, lastAttempt: Date.now() });
+        setAttemptCount(newCount);
+        const remaining = MAX_ATTEMPTS - newCount;
+        setError(
+          remaining > 0
+            ? `Incorrect credentials. ${remaining} attempt${remaining > 1 ? 's' : ''} remaining before temporary lockout.`
+            : 'Incorrect credentials.'
+        );
+        refreshCaptcha();
+      }
     } else {
+      // ── On success: clear rate-limit record ──
+      clearAttemptRecord();
       const targetRole = resolvedRole || role || 'administrator';
       handleRedirect(targetRole);
     }
@@ -111,7 +290,27 @@ export const LoginPage: React.FC = () => {
   const handleQuickFill = (roleEmail: string, rolePwd: string = 'Password123!') => {
     setEmail(roleEmail);
     setPassword(rolePwd);
+    setPasswordTouched(true);
+    // Automatically fill current captcha answer for smooth demo experience
+    setCaptchaInput(String(captcha.answer));
+    setCaptchaError(false);
   };
+
+  const showCaptcha = Boolean(password.length > 0 || passwordTouched) && !isLocked;
+
+  // ─── Attempt indicator dots ────────────────────────────────────────────────
+  const AttemptDots = () => (
+    <div className="flex items-center gap-1.5">
+      {Array.from({ length: MAX_ATTEMPTS }).map((_, i) => (
+        <div
+          key={i}
+          className={`w-2 h-2 rounded-full transition-all duration-300 ${
+            i < attemptCount ? 'bg-red-500 scale-110' : 'bg-slate-200'
+          }`}
+        />
+      ))}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#071326] text-[#0F172A] flex flex-col justify-between selection:bg-[#C59B27] selection:text-[#071326]">
@@ -204,21 +403,29 @@ export const LoginPage: React.FC = () => {
 
           {/* Right Column: Portal Login Form */}
           <div className="gsap-login-form-card lg:col-span-7 bg-white p-6 sm:p-10 flex flex-col justify-between">
-            <div className="space-y-6">
+            <div className="space-y-5">
 
-              {/* Header */}
-              <div>
-                <div className="flex items-center justify-between">
+              {/* Header + Attempt indicators */}
+              <div className="flex items-start justify-between">
+                <div>
                   <h2 className="font-academic-serif text-2xl font-extrabold text-[#0F2747]">
                     Portal Sign In
                   </h2>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
+                  <p className="text-xs text-[#64748B] mt-1 font-medium">
+                    Enter your registered institutional credentials to access your academic dashboard.
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-1.5 shrink-0 ml-4">
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-blue-50 text-[#1E5AA8] border border-blue-200">
                     SSO v4.2
                   </span>
+                  {attemptCount > 0 && !isLocked && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-slate-400 font-medium">Attempts</span>
+                      <AttemptDots />
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs text-[#64748B] mt-1 font-medium">
-                  Enter your registered institutional credentials to access your academic dashboard.
-                </p>
               </div>
 
               {/* Safe Logout Notice */}
@@ -229,102 +436,202 @@ export const LoginPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Error Alert */}
-              {error && (
-                <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-[#DC2626] text-xs flex items-start gap-2.5">
+              {/* ── LOCKOUT Banner ─────────────────────────────────────── */}
+              {isLocked && (
+                <div className="p-4 rounded-xl bg-red-50 border border-red-300 text-[#991B1B] flex flex-col gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <Ban className="w-5 h-5 shrink-0 text-red-500 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold">Account Access Temporarily Suspended</p>
+                      <p className="text-[11px] text-red-700 mt-0.5">
+                        {MAX_ATTEMPTS} consecutive failed login attempts detected. Your access has been
+                        blocked as an automated security measure.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between bg-red-100 rounded-lg px-3.5 py-2.5">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-red-800">
+                      <Timer className="w-4 h-4" />
+                      <span>Lockout expires in</span>
+                    </div>
+                    <span className="font-mono text-lg font-extrabold text-red-700 tracking-widest">
+                      {formatCountdown(lockCountdown)}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-red-500 text-center">
+                    Contact <span className="font-semibold">support@university.edu</span> if this was not you.
+                  </p>
+                </div>
+              )}
+
+              {/* Error Alert (non-lockout) */}
+              {error && !isLocked && (
+                <div
+                  className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 ${
+                    attemptCount >= MAX_ATTEMPTS - 1
+                      ? 'bg-orange-50 border-orange-300 text-orange-800'
+                      : 'bg-red-50 border-red-200 text-[#DC2626]'
+                  }`}
+                >
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{error}</span>
                 </div>
               )}
 
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
-                <input type="text" name="fake_username" style={{ display: 'none' }} tabIndex={-1} autoComplete="off" />
-                <input type="password" name="fake_password" style={{ display: 'none' }} tabIndex={-1} autoComplete="off" />
+              {/* ── Form (hidden during lockout) ───────────────────────── */}
+              {!isLocked && (
+                <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+                  {/* Honeypot fields against bot autocomplete */}
+                  <input type="text" name="fake_username" style={{ display: 'none' }} tabIndex={-1} autoComplete="off" readOnly />
+                  <input type="password" name="fake_password" style={{ display: 'none' }} tabIndex={-1} autoComplete="off" readOnly />
 
-                <div>
-                  <label className="block text-xs font-bold text-[#0F2747] mb-1.5 uppercase tracking-wider">
-                    Institutional Email Address
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="email"
-                      name="inst_portal_email"
-                      id="inst_portal_email"
-                      autoComplete="off"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      placeholder="e.g. virat@university.edu or student@university.edu"
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-3 text-xs font-medium text-[#172033] placeholder-slate-400 focus:bg-white focus:outline-none focus:border-[#0F2747] focus:ring-2 focus:ring-[#0F2747]/20 pl-10 transition"
-                    />
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-[#0F2747] uppercase tracking-wider">
-                      Security Password
+                  <div>
+                    <label className="block text-xs font-bold text-[#0F2747] mb-1.5 uppercase tracking-wider">
+                      Institutional Email Address
                     </label>
-                    <Link
-                      to="/forgot-password"
-                      className="text-[11px] font-semibold text-[#1E5AA8] hover:text-[#0F2747] hover:underline"
-                    >
-                      Forgot password?
-                    </Link>
+                    <div className="relative">
+                      <input
+                        type="email"
+                        id="inst_email_field"
+                        name="inst_email_field"
+                        autoComplete="off"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        disabled={isLocked}
+                        placeholder="name@university.edu"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-3 text-xs font-medium text-[#172033] placeholder-slate-400 focus:bg-white focus:outline-none focus:border-[#0F2747] focus:ring-2 focus:ring-[#0F2747]/20 pl-10 transition disabled:opacity-50"
+                      />
+                      <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                    </div>
                   </div>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      name="inst_portal_pwd"
-                      id="inst_portal_pwd"
-                      autoComplete="new-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      placeholder="••••••••••••"
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-3 text-xs font-medium text-[#172033] placeholder-slate-400 focus:bg-white focus:outline-none focus:border-[#0F2747] focus:ring-2 focus:ring-[#0F2747]/20 pl-10 pr-10 transition"
-                    />
-                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-[#0F2747] uppercase tracking-wider">
+                        Security Password
+                      </label>
+                      <Link
+                        to="/forgot-password"
+                        className="text-[11px] font-semibold text-[#1E5AA8] hover:text-[#0F2747] hover:underline"
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        id="inst_pwd_field"
+                        name="inst_pwd_field"
+                        autoComplete="new-password"
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          if (e.target.value) setPasswordTouched(true);
+                        }}
+                        required
+                        disabled={isLocked}
+                        placeholder="••••••••••••"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-3 text-xs font-medium text-[#172033] placeholder-slate-400 focus:bg-white focus:outline-none focus:border-[#0F2747] focus:ring-2 focus:ring-[#0F2747]/20 pl-10 pr-10 transition disabled:opacity-50"
+                      />
+                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center justify-between pt-1">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      id="rememberMe"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="rounded border-slate-300 text-[#0F2747] focus:ring-[#0F2747] w-4 h-4 cursor-pointer"
-                    />
-                    <span className="text-xs text-slate-600 font-medium">Keep institutional session active</span>
-                  </label>
-                </div>
+                  {/* ── Harder multi-step math CAPTCHA ──────────────────────── */}
+                  {showCaptcha && (
+                    <div
+                      className={`p-4 rounded-xl border-2 transition-colors ${
+                        captchaError ? 'border-red-400 bg-red-50' : 'border-amber-300 bg-amber-50/60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">
+                            Security Challenge Required
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={refreshCaptcha}
+                          title="Generate new challenge"
+                          className="text-amber-600 hover:text-amber-800 transition cursor-pointer"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="btn-3d-primary w-full py-3.5 px-4 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-50"
-                >
-                  {loading ? (
-                    <span>Authenticating Credentials...</span>
-                  ) : (
-                    <>
-                      <span>Sign In to Institutional Portal</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 bg-white border border-amber-300 rounded-lg px-4 py-2.5 text-center select-none shadow-xs">
+                          <span className="font-mono text-base sm:text-lg font-extrabold text-[#0F2747] tracking-widest">
+                            {captcha.question}
+                          </span>
+                        </div>
+
+                        <input
+                          type="number"
+                          value={captchaInput}
+                          onChange={(e) => {
+                            setCaptchaInput(e.target.value);
+                            setCaptchaError(false);
+                          }}
+                          placeholder="Ans"
+                          className={`w-20 text-center bg-white border rounded-lg px-2 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 transition ${
+                            captchaError
+                              ? 'border-red-400 text-red-700 focus:ring-red-300'
+                              : 'border-amber-300 text-[#0F2747] focus:ring-amber-300'
+                          }`}
+                        />
+                      </div>
+
+                      {captchaError && (
+                        <p className="text-[11px] text-red-600 font-medium mt-1.5">
+                          Incorrect answer. A new challenge has been generated.
+                        </p>
+                      )}
+                      <p className="text-[10px] text-amber-700/80 mt-1.5">
+                        Solve the mathematical challenge above to authenticate.
+                      </p>
+                    </div>
                   )}
-                </button>
-              </form>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        id="rememberMe"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="rounded border-slate-300 text-[#0F2747] focus:ring-[#0F2747] w-4 h-4 cursor-pointer"
+                      />
+                      <span className="text-xs text-slate-600 font-medium">Keep institutional session active</span>
+                    </label>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading || isLocked}
+                    className="btn-3d-primary w-full py-3.5 px-4 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <span>Authenticating Credentials...</span>
+                    ) : (
+                      <>
+                        <span>Sign In to Institutional Portal</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
 
               {/* Quick Fill Demo Credentials */}
               <div className="pt-3 border-t border-slate-100">

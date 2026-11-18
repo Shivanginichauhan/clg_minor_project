@@ -326,9 +326,7 @@ export const seatingService = {
   },
 
   async createRoom(payload: any): Promise<any> {
-    if (!isSupabaseConfigured) return { id: 'room-' + Date.now(), ...payload };
-    const { data } = await supabase.from('rooms').insert([payload]).select().single();
-    return data;
+    return examService.createRoom(payload);
   },
 
   async submitHallRegister(dutyId: string, payload: any): Promise<void> {

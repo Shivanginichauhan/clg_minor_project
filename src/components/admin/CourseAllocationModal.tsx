@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AcademicSession } from '../../types/database.types.js';
 import { AllocationFormData } from '../../services/academicStructureService.js';
 import { SubjectWithDetails, FacultyWithDetails } from '../../data/mockAcademics.js';
@@ -37,22 +37,49 @@ export const CourseAllocationModal: React.FC<CourseAllocationModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Synchronize form values whenever modal opens or subject/faculty/session lists populate
+  useEffect(() => {
+    if (isOpen) {
+      const activeSession = sessions.find((s) => s.is_current) || sessions[0];
+      setFormData({
+        subject_id: defaultSubjectId || subjects[0]?.id || '',
+        faculty_id: defaultFacultyId || facultyList[0]?.id || '',
+        session_id: activeSession?.id || '',
+        role: 'primary_instructor',
+        weekly_hours: 4,
+      });
+      setError(null);
+    }
+  }, [isOpen, defaultSubjectId, defaultFacultyId, subjects, facultyList, sessions]);
+
   if (!isOpen) return null;
 
-  const selectedSubject = subjects.find((s) => s.id === formData.subject_id);
-  const selectedFaculty = facultyList.find((f) => f.id === formData.faculty_id);
+  const selectedSubject = subjects.find((s) => s.id === (formData.subject_id || subjects[0]?.id));
+  const selectedFaculty = facultyList.find((f) => f.id === (formData.faculty_id || facultyList[0]?.id));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.subject_id || !formData.faculty_id || !formData.session_id) {
+    const activeSession = sessions.find((s) => s.is_current) || sessions[0];
+    const resolvedSubjectId = formData.subject_id || defaultSubjectId || subjects[0]?.id;
+    const resolvedFacultyId = formData.faculty_id || defaultFacultyId || facultyList[0]?.id;
+    const resolvedSessionId = formData.session_id || activeSession?.id;
+
+    if (!resolvedSubjectId || !resolvedFacultyId || !resolvedSessionId) {
       setError('Please fill all required allocation fields');
       return;
     }
 
+    const payload: AllocationFormData = {
+      ...formData,
+      subject_id: resolvedSubjectId,
+      faculty_id: resolvedFacultyId,
+      session_id: resolvedSessionId,
+    };
+
     try {
       setLoading(true);
       setError(null);
-      await onSave(formData);
+      await onSave(payload);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to allocate subject');

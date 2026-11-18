@@ -182,7 +182,7 @@ export const SeatingManagementPage: React.FC = () => {
     }
   };
 
-  const handleAddRoom = (e: React.FormEvent) => {
+  const handleAddRoom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRoomData.room_number.trim()) {
       setMessage({ type: 'error', text: 'Please provide a valid Room Number.' });
@@ -190,7 +190,7 @@ export const SeatingManagementPage: React.FC = () => {
     }
 
     try {
-      seatingService.createRoom(newRoomData);
+      await seatingService.createRoom(newRoomData);
       setMessage({ type: 'success', text: `Hall ${newRoomData.room_number} added to examination infrastructure.` });
       setIsAddRoomModalOpen(false);
       setNewRoomData({
@@ -202,7 +202,7 @@ export const SeatingManagementPage: React.FC = () => {
         columns: 10,
         is_available: true,
       });
-      loadData();
+      await loadData();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to create room.' });
     }
