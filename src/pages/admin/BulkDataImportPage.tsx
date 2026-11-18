@@ -23,7 +23,7 @@ import {
   RotateCcw,
   ShieldCheck
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import readXlsxFile from 'read-excel-file/browser';
 import { studentFacultyService } from '../../services/studentFacultyService.js';
 import { examService } from '../../services/examService.js';
 import { academicStructureService } from '../../services/academicStructureService.js';
@@ -345,39 +345,35 @@ export const BulkDataImportPage: React.FC = () => {
     setParsedRecords(validated);
   };
 
+  const parseCsvText = (text: string): Record<string, any>[] => {
+    const lines = text.trim().split(/\r?\n/).filter(line => line.trim().length > 0);
+    if (lines.length <= 1) return [];
+    const firstLine = lines[0];
+    const delimiter = firstLine.includes('\t') ? '\t' : (firstLine.includes(';') && !firstLine.includes(',')) ? ';' : ',';
+    const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, ''));
+    return lines.slice(1).map(line => {
+      const parts = line.split(delimiter).map(p => p.trim().replace(/^["']|["']$/g, ''));
+      const obj: Record<string, any> = {};
+      headers.forEach((h, i) => {
+        // Prevent prototype pollution
+        if (h && h !== '__proto__' && h !== 'constructor' && h !== 'prototype') {
+          obj[h] = parts[i] !== undefined ? parts[i] : '';
+        }
+      });
+      return obj;
+    });
+  };
+
   const processRawText = (text: string) => {
     if (!text.trim()) {
       setParsedRecords([]);
       return;
     }
-
-    try {
-      const workbook = XLSX.read(text, { type: 'string' });
-      const firstSheet = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[firstSheet];
-      const json: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-      processRawRows(json);
-    } catch (e: any) {
-      // Fallback simple CSV parsing
-      const lines = text.trim().split('\n');
-      if (lines.length <= 1) {
-        setParsedRecords([]);
-        return;
-      }
-      const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
-      const rows = lines.slice(1).map((line) => {
-        const parts = line.split(',').map((p) => p.trim().replace(/^"|"$/g, ''));
-        const obj: Record<string, any> = {};
-        headers.forEach((h, i) => {
-          obj[h] = parts[i] || '';
-        });
-        return obj;
-      });
-      processRawRows(rows);
-    }
+    const rows = parseCsvText(text);
+    processRawRows(rows);
   };
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
@@ -388,25 +384,48 @@ export const BulkDataImportPage: React.FC = () => {
     setFileName(file.name);
     setImportResult(null);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
+    const isExcel = file.name.endsWith('.xlsx');
+    if (isExcel) {
       try {
-        const buffer = event.target?.result as ArrayBuffer;
-        const workbook = XLSX.read(buffer, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[firstSheetName];
-        const json: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-        if (!json || json.length === 0) {
+        const sheets = await readXlsxFile(file);
+        const rows = sheets?.[0]?.data || [];
+        if (!rows || rows.length <= 1) {
           alert('The uploaded spreadsheet contains no data rows.');
           return;
         }
+        const headers = rows[0].map(h => String(h ?? '').trim());
+        const json: Record<string, any>[] = rows.slice(1).map(row => {
+          const obj: Record<string, any> = {};
+          headers.forEach((h, i) => {
+            if (h && h !== '__proto__' && h !== 'constructor' && h !== 'prototype') {
+              obj[h] = row[i] !== undefined && row[i] !== null ? String(row[i]).trim() : '';
+            }
+          });
+          return obj;
+        });
         processRawRows(json);
       } catch (err: any) {
         console.error('File parse error:', err);
-        alert('Could not parse the selected file. Please make sure it is a valid CSV or Excel (.xlsx/.xls) file.');
+        alert('Could not parse the selected Excel file. Please make sure it is a valid .xlsx file or upload as .csv.');
       }
-    };
-    reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const text = (event.target?.result as string) || '';
+          const rows = parseCsvText(text);
+          if (rows.length === 0) {
+            alert('The uploaded spreadsheet contains no data rows.');
+            return;
+          }
+          processRawRows(rows);
+        } catch (err: any) {
+          console.error('CSV parse error:', err);
+          alert('Could not parse the selected CSV file.');
+        }
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

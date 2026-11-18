@@ -268,7 +268,7 @@ export const MyRequestsPage: React.FC = () => {
                     </div>
 
                     <h3 className="text-sm font-bold text-[#0F2747] mt-1">{req.title}</h3>
-                    <p className="text-xs text-slate-500 mt-0.5" dangerouslySetInnerHTML={{ __html: req.details }} />
+                    <p className="text-xs text-slate-500 mt-0.5">{req.details}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">Routed to: {req.department}</p>
                   </div>
                 </div>

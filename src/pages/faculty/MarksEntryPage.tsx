@@ -21,7 +21,7 @@ import {
   ChevronDown,
   Info
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import readXlsxFile from 'read-excel-file/browser';
 import { useAuth } from '../../contexts/AuthContext.js';
 import {
   marksService,
@@ -331,29 +331,40 @@ export const MarksEntryPage: React.FC = () => {
   };
 
   // Handle uploaded spreadsheet file (CSV or Excel)
-  const handleCsvFileProcess = (file: File) => {
+  const handleCsvFileProcess = async (file: File) => {
     if (!file) return;
     setCsvFileName(file.name);
 
-    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-    const reader = new FileReader();
-
+    const isExcel = file.name.endsWith('.xlsx');
     if (isExcel) {
-      reader.onload = (event) => {
-        try {
-          const buffer = event.target?.result as ArrayBuffer;
-          const workbook = XLSX.read(buffer, { type: 'array' });
-          const firstSheet = workbook.SheetNames[0];
-          const sheet = workbook.Sheets[firstSheet];
-          const csvText = XLSX.utils.sheet_to_csv(sheet);
-          setCsvInput(csvText);
-        } catch (err: any) {
-          console.error('Failed to parse excel marks file:', err);
-          alert('Could not parse Excel marks file. Please make sure it is a valid format.');
+      try {
+        const sheets = await readXlsxFile(file);
+        const rows = sheets?.[0]?.data || [];
+        if (!rows || rows.length === 0) {
+          alert('Uploaded file contains no rows.');
+          return;
         }
-      };
-      reader.readAsArrayBuffer(file);
+        // Convert rows into standard CSV text
+        const csvText = rows
+          .map((row) =>
+            row
+              .map((cell) => {
+                if (cell === null || cell === undefined) return '';
+                const str = String(cell).trim();
+                return str.includes(',') || str.includes('"') || str.includes('\n')
+                  ? `"${str.replace(/"/g, '""')}"`
+                  : str;
+              })
+              .join(',')
+          )
+          .join('\n');
+        setCsvInput(csvText);
+      } catch (err: any) {
+        console.error('Failed to parse excel marks file:', err);
+        alert('Could not parse Excel marks file. Please make sure it is a valid .xlsx file or upload CSV.');
+      }
     } else {
+      const reader = new FileReader();
       reader.onload = (event) => {
         const text = (event.target?.result as string) || '';
         setCsvInput(text);

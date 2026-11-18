@@ -36,8 +36,8 @@ export default defineConfig(() => {
               if (id.includes('recharts') || id.includes('d3-')) {
                 return 'vendor-charts';
               }
-              if (id.includes('xlsx')) {
-                return 'vendor-xlsx';
+              if (id.includes('read-excel-file')) {
+                return 'vendor-excel';
               }
             }
           },
