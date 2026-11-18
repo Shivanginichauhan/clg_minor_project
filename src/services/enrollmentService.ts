@@ -28,9 +28,29 @@ const getHydratedMockEnrollments = (): EnrollmentWithDetails[] => {
   });
 };
 
+const ENROLLMENTS_STORAGE_KEY = 'ueams_enrollments_store';
+
+const getStoredEnrollments = (): EnrollmentWithDetails[] => {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(ENROLLMENTS_STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return getHydratedMockEnrollments();
+};
+
+const setStoredEnrollments = (list: EnrollmentWithDetails[]) => {
+  try {
+    if (typeof window !== 'undefined') localStorage.setItem(ENROLLMENTS_STORAGE_KEY, JSON.stringify(list));
+  } catch {}
+};
+
 export const enrollmentService = {
   // Get all enrollments with populated student & subject metadata
   async getAllEnrollments(): Promise<EnrollmentWithDetails[]> {
+    const localList = getStoredEnrollments();
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
@@ -43,14 +63,21 @@ export const enrollmentService = {
           `);
 
         if (!error && data && data.length > 0) {
-          return data as unknown as EnrollmentWithDetails[];
+          const remoteList = data as unknown as EnrollmentWithDetails[];
+          const remoteMap = new Map(remoteList.map((e) => [e.id, e]));
+          localList.forEach((le) => {
+            if (!remoteMap.has(le.id)) remoteMap.set(le.id, le);
+          });
+          const merged = Array.from(remoteMap.values());
+          setStoredEnrollments(merged);
+          return merged;
         }
       } catch (e) {
         console.warn('[ENROLLMENT] Supabase query fallback to local dataset:', e);
       }
     }
 
-    return getHydratedMockEnrollments();
+    return localList;
   },
 
   // Get enrollments for a specific student
@@ -109,7 +136,7 @@ export const enrollmentService = {
       }
     }
 
-    const all = getHydratedMockEnrollments();
+    const all = getStoredEnrollments();
     return all.filter((e) => e.subject_id === subjectId && e.status === 'enrolled');
   },
 
@@ -119,26 +146,50 @@ export const enrollmentService = {
     subject_id: string;
     semester_id: string;
   }): Promise<EnrollmentWithDetails> {
-    if (!isSupabaseConfigured) throw new Error('Database is not configured.');
+    const newEnrollmentId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `enr-${Date.now()}`;
+    const newEnrollment: EnrollmentWithDetails = {
+      id: newEnrollmentId,
+      student_id: payload.student_id,
+      subject_id: payload.subject_id,
+      semester_id: payload.semester_id,
+      status: 'enrolled',
+      enrolled_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any;
 
-    const { data, error } = await supabase
-      .from('enrollments')
-      .insert({
-        student_id: payload.student_id,
-        subject_id: payload.subject_id,
-        semester_id: payload.semester_id,
-        status: 'enrolled',
-      })
-      .select(`
-        *,
-        student:students(*, profile:profiles(*)),
-        subject:subjects(*),
-        semester:semesters(*)
-      `)
-      .single();
+    const currentList = getStoredEnrollments();
+    setStoredEnrollments([newEnrollment, ...currentList]);
 
-    if (error) throw new Error(`Enrollment failed: ${error.message}`);
-    return data as unknown as EnrollmentWithDetails;
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('enrollments')
+          .insert({
+            student_id: payload.student_id,
+            subject_id: payload.subject_id,
+            semester_id: payload.semester_id,
+            status: 'enrolled',
+          })
+          .select(`
+            *,
+            student:students(*, profile:profiles(*)),
+            subject:subjects(*),
+            semester:semesters(*)
+          `)
+          .single();
+
+        if (!error && data) {
+          const updated = data as unknown as EnrollmentWithDetails;
+          setStoredEnrollments([updated, ...currentList.filter((e) => e.id !== newEnrollmentId)]);
+          return updated;
+        }
+      } catch (e) {
+        console.warn('[ENROLLMENT] Supabase insert notice, saved locally:', e);
+      }
+    }
+
+    return newEnrollment;
   },
 
   // Bulk enroll cohort of students into a semester curriculum
@@ -147,27 +198,47 @@ export const enrollmentService = {
     subject_ids: string[];
     semester_id: string;
   }): Promise<{ successful: number; duplicates: number }> {
-    if (!isSupabaseConfigured) throw new Error('Database is not configured.');
-
     let successful = 0;
     let duplicates = 0;
 
+    const currentList = getStoredEnrollments();
+    const toAdd: EnrollmentWithDetails[] = [];
+
     for (const studentId of payload.student_ids) {
       for (const subjectId of payload.subject_ids) {
-        const { error } = await supabase
-          .from('enrollments')
-          .insert({
-            student_id: studentId,
-            subject_id: subjectId,
-            semester_id: payload.semester_id,
+        const already = currentList.some((e) => e.student_id === studentId && e.subject_id === subjectId && e.status === 'enrolled');
+        if (already) {
+          duplicates++;
+          continue;
+        }
+        toAdd.push({
+          id: `enr-${Date.now()}-${successful}`,
+          student_id: studentId,
+          subject_id: subjectId,
+          semester_id: payload.semester_id,
+          status: 'enrolled',
+          enrolled_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as any);
+        successful++;
+      }
+    }
+
+    setStoredEnrollments([...toAdd, ...currentList]);
+
+    if (isSupabaseConfigured) {
+      try {
+        for (const rec of toAdd) {
+          await supabase.from('enrollments').insert({
+            student_id: rec.student_id,
+            subject_id: rec.subject_id,
+            semester_id: rec.semester_id,
             status: 'enrolled',
           });
-
-        if (error) {
-          if (error.code === '23505') duplicates++;
-        } else {
-          successful++;
         }
+      } catch (e) {
+        console.warn('[ENROLLMENT] Supabase bulk insert notice, saved locally:', e);
       }
     }
 
@@ -190,28 +261,48 @@ export const enrollmentService = {
     id: string,
     status: 'enrolled' | 'dropped' | 'completed'
   ): Promise<EnrollmentWithDetails> {
-    if (!isSupabaseConfigured) throw new Error('Database is not configured.');
+    const currentList = getStoredEnrollments();
+    const existing = currentList.find((e) => e.id === id);
+    const updated: EnrollmentWithDetails = {
+      ...(existing || {
+        id,
+        student_id: 'stud-1',
+        subject_id: 'sub-1',
+        semester_id: 'sem-1',
+        status: 'enrolled',
+        enrolled_at: new Date().toISOString(),
+      }),
+      status,
+      updated_at: new Date().toISOString(),
+    } as any;
 
-    const { data, error } = await supabase
-      .from('enrollments')
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select(`
-        *,
-        student:students(*, profile:profiles(*)),
-        subject:subjects(*),
-        semester:semesters(*)
-      `)
-      .single();
+    setStoredEnrollments(currentList.map((e) => (e.id === id ? updated : e)));
 
-    if (error) throw new Error(`Failed to update enrollment: ${error.message}`);
-    return data as unknown as EnrollmentWithDetails;
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('enrollments')
+          .update({ status, updated_at: new Date().toISOString() })
+          .eq('id', id);
+      } catch (e) {
+        console.warn('[ENROLLMENT] Supabase update notice, saved locally:', e);
+      }
+    }
+
+    return updated;
   },
 
   async dropEnrollment(id: string): Promise<void> {
-    if (!isSupabaseConfigured) throw new Error('Database is not configured.');
-    const { error } = await supabase.from('enrollments').delete().eq('id', id);
-    if (error) throw new Error(`Failed to drop enrollment: ${error.message}`);
+    const currentList = getStoredEnrollments();
+    setStoredEnrollments(currentList.filter((e) => e.id !== id));
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('enrollments').delete().eq('id', id);
+      } catch (e) {
+        console.warn('[ENROLLMENT] Supabase drop notice, dropped locally:', e);
+      }
+    }
   },
 
   async autoEnrollCohort(

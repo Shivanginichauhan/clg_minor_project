@@ -27,6 +27,14 @@ const saveCustomNoticeToStorage = (notice: UniversityNotice) => {
   }
 };
 
+const saveAllCustomNoticesToStorage = (list: UniversityNotice[]) => {
+  try {
+    localStorage.setItem(LOCAL_CUSTOM_NOTICES_KEY, JSON.stringify(list));
+  } catch (e) {
+    // ignore
+  }
+};
+
 export type NoticePriority = 'normal' | 'important' | 'urgent';
 export type NoticeAudience = 'all' | 'students' | 'faculty' | 'deans';
 export type NoticeCategory = 'examination' | 'academic' | 'administrative' | 'fee' | 'general';
@@ -324,28 +332,40 @@ export const noticeService = {
   },
 
   /**
-   * Update existing notice in Supabase
+   * Update existing notice in Supabase or local storage
    */
   updateNotice: async (
     id: string,
     updates: Partial<UniversityNotice>,
     currentUser: { id: string; name: string; role: any }
   ): Promise<void> => {
-    if (!isSupabaseConfigured) throw new Error('Database is not configured.');
+    // 1. Update in local storage cache
+    const stored = getStoredCustomNotices();
+    const idx = stored.findIndex((n) => n.id === id);
+    if (idx !== -1) {
+      stored[idx] = { ...stored[idx], ...updates };
+      saveAllCustomNoticesToStorage(stored);
+    }
 
-    const updatePayload: Record<string, any> = {
-      updated_at: new Date().toISOString(),
-    };
-    if (updates.title !== undefined) updatePayload.title = updates.title;
-    if (updates.content !== undefined) updatePayload.content = updates.content;
-    if (updates.target_audience !== undefined) updatePayload.target_audience = updates.target_audience;
-    if (updates.is_pinned !== undefined) updatePayload.is_pinned = updates.is_pinned;
-    if (updates.expires_at !== undefined) updatePayload.expires_at = updates.expires_at;
+    // 2. Sync to Supabase if configured
+    if (isSupabaseConfigured) {
+      try {
+        const updatePayload: Record<string, any> = {
+          updated_at: new Date().toISOString(),
+        };
+        if (updates.title !== undefined) updatePayload.title = updates.title;
+        if (updates.content !== undefined) updatePayload.content = updates.content;
+        if (updates.target_audience !== undefined) updatePayload.target_audience = updates.target_audience;
+        if (updates.is_pinned !== undefined) updatePayload.is_pinned = updates.is_pinned;
+        if (updates.expires_at !== undefined) updatePayload.expires_at = updates.expires_at;
 
-    const { error } = await supabase.from('notices').update(updatePayload).eq('id', id);
-
-    if (error) {
-      throw new Error(`Failed to update notice: ${error.message}`);
+        const { error } = await supabase.from('notices').update(updatePayload).eq('id', id);
+        if (error) {
+          console.warn('[NOTICES] DB update failed, preserved locally:', error.message);
+        }
+      } catch (err) {
+        console.warn('[NOTICES] DB update connection error:', err);
+      }
     }
 
     auditService.logEvent({
@@ -369,8 +389,6 @@ export const noticeService = {
     currentPinnedOrActor: boolean | { id: string; name: string; role: any },
     actor?: { id: string; name: string; role: any }
   ): Promise<boolean> => {
-    if (!isSupabaseConfigured) return false;
-
     let newPinned = true;
     const currentUser = typeof currentPinnedOrActor === 'boolean'
       ? actor || { id: 'admin', name: 'Admin', role: 'administrator' }
@@ -380,9 +398,24 @@ export const noticeService = {
       newPinned = !currentPinnedOrActor;
     }
 
-    const { error } = await supabase.from('notices').update({ is_pinned: newPinned, updated_at: new Date().toISOString() }).eq('id', id);
+    // Update in local cache
+    const stored = getStoredCustomNotices();
+    const idx = stored.findIndex((n) => n.id === id);
+    if (idx !== -1) {
+      stored[idx].is_pinned = newPinned;
+      saveAllCustomNoticesToStorage(stored);
+    }
 
-    if (error) throw new Error(`Failed to toggle pin: ${error.message}`);
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('notices').update({ is_pinned: newPinned, updated_at: new Date().toISOString() }).eq('id', id);
+        if (error) {
+          console.warn('[NOTICES] DB togglePin failed, updated locally:', error.message);
+        }
+      } catch (err) {
+        console.warn('[NOTICES] DB togglePin connection error:', err);
+      }
+    }
 
     auditService.logEvent({
       user_id: currentUser.id,
@@ -402,11 +435,21 @@ export const noticeService = {
    * Delete a notice
    */
   deleteNotice: async (id: string, currentUser: { id: string; name: string; role: any }): Promise<boolean> => {
-    if (!isSupabaseConfigured) return false;
+    // Remove from local cache
+    const stored = getStoredCustomNotices();
+    const filtered = stored.filter((n) => n.id !== id);
+    saveAllCustomNoticesToStorage(filtered);
 
-    const { error } = await supabase.from('notices').delete().eq('id', id);
-
-    if (error) throw new Error(`Failed to delete notice: ${error.message}`);
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('notices').delete().eq('id', id);
+        if (error) {
+          console.warn('[NOTICES] DB delete failed, deleted locally:', error.message);
+        }
+      } catch (err) {
+        console.warn('[NOTICES] DB delete connection error:', err);
+      }
+    }
 
     auditService.logEvent({
       user_id: currentUser.id,

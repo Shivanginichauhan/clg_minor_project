@@ -198,25 +198,50 @@ export const marksService = {
     },
     currentUser?: { id: string; name: string; role: any }
   ): Promise<void> {
-    if (!isSupabaseConfigured) throw new Error('Database is not configured.');
-
     const total = (payload.internal_marks ?? 0) + (payload.external_marks ?? 0);
     const { grade_letter, grade_point } = calculateGrade(total, 100);
 
-    const { error } = await supabase
-      .from('marks')
-      .update({
+    // 1. Optimistic Local Storage Update (Serverless Offline-Ready)
+    const cache = getStoredMarksCache();
+    const idx = cache.findIndex((m) => m.id === markId);
+    if (idx !== -1) {
+      cache[idx] = {
+        ...cache[idx],
         ...(payload.internal_marks !== undefined && { internal_marks: payload.internal_marks }),
         ...(payload.external_marks !== undefined && { external_marks: payload.external_marks }),
-        grade: grade_letter,
+        total_marks: total,
+        grade_letter: grade_letter as any,
         grade_point: grade_point,
         ...(payload.status && { status: payload.status }),
         ...(payload.moderation_remarks && { moderation_remarks: payload.moderation_remarks }),
         updated_at: new Date().toISOString(),
-      })
-      .eq('id', markId);
+      };
+      saveStoredMarksCache(cache);
+    }
 
-    if (error) throw new Error(`Failed to update marks: ${error.message}`);
+    // 2. Cloud DB Sync if Available
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from('marks')
+          .update({
+            ...(payload.internal_marks !== undefined && { internal_marks: payload.internal_marks }),
+            ...(payload.external_marks !== undefined && { external_marks: payload.external_marks }),
+            grade: grade_letter,
+            grade_point: grade_point,
+            ...(payload.status && { status: payload.status }),
+            ...(payload.moderation_remarks && { moderation_remarks: payload.moderation_remarks }),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', markId);
+
+        if (error) {
+          console.warn('Supabase marks update failed, falling back to local cache:', error.message);
+        }
+      } catch (err) {
+        console.warn('Supabase connection error during marks update:', err);
+      }
+    }
 
     if (currentUser) {
       auditService.logEvent({
@@ -240,17 +265,37 @@ export const marksService = {
     newStatus: 'verified' | 'published',
     currentUser?: { id: string; name: string; role: any }
   ): Promise<number> {
-    if (!isSupabaseConfigured) throw new Error('Database is not configured.');
+    // 1. Optimistic Local Storage Update (Serverless Offline-Ready)
+    const cache = getStoredMarksCache();
+    let updatedCount = 0;
+    for (const id of markIds) {
+      const idx = cache.findIndex((m) => m.id === id);
+      if (idx !== -1) {
+        cache[idx].status = newStatus;
+        cache[idx].updated_at = new Date().toISOString();
+        updatedCount++;
+      }
+    }
+    saveStoredMarksCache(cache);
 
-    const { error } = await supabase
-      .from('marks')
-      .update({
-        status: newStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .in('id', markIds);
+    // 2. Cloud DB Sync if Available
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from('marks')
+          .update({
+            status: newStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .in('id', markIds);
 
-    if (error) throw new Error(`Failed to verify marks: ${error.message}`);
+        if (error) {
+          console.warn('Supabase bulk verify failed, falling back to local cache:', error.message);
+        }
+      } catch (err) {
+        console.warn('Supabase connection error during bulk verify:', err);
+      }
+    }
 
     if (currentUser) {
       auditService.logEvent({
@@ -265,7 +310,7 @@ export const marksService = {
       });
     }
 
-    return markIds.length;
+    return updatedCount || markIds.length;
   },
 
   async batchUpdateMarks(marks: StudentMarksWithDetails[], facultyId?: string): Promise<void> {

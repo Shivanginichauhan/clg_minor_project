@@ -138,9 +138,9 @@ const GlobalStyles = () => (
     .stat-card:hover { transform: translateY(-4px); }
     .stat-card { transition: transform 0.25s ease, box-shadow 0.25s ease; }
     .notice-card:hover { transform: translateY(-3px); }
-    .notice-card { transition: all 0.25s ease; }
+    .notice-card { transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease; }
     .step-card:hover { transform: translateY(-6px) scale(1.02); }
-    .step-card { transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1); }
+    .step-card { transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s ease, border-color 0.3s ease; }
 
     /* Orb backgrounds */
     .orb-1 {
@@ -221,77 +221,73 @@ export const HomePage: React.FC = () => {
     });
 
     // 4. Role Portals Section (once: true, clearProps: 'all')
-    const portalsTl = gsap.timeline({
-      scrollTrigger: {
-        trigger: '#portals',
-        start: 'top 88%',
-        once: true,
-      },
+    gsap.from('.gsap-portals-header', {
+      scrollTrigger: { trigger: '#portals', start: 'top 92%', once: true },
+      y: 20, opacity: 0, duration: 0.5, clearProps: 'all'
     });
-    portalsTl
-      .from('.gsap-portals-header', { y: 25, autoAlpha: 0, duration: 0.5, clearProps: 'all' })
-      .from('.gsap-portal-tab', { scale: 0.92, autoAlpha: 0, stagger: 0.06, duration: 0.4, ease: 'back.out(1.4)', clearProps: 'all' }, '-=0.2');
+    gsap.from('.gsap-portal-tab', {
+      scrollTrigger: { trigger: '#portals', start: 'top 92%', once: true },
+      scale: 0.95, opacity: 0, stagger: 0.05, duration: 0.35, ease: 'back.out(1.4)', clearProps: 'all'
+    });
 
     // 5. Exam Lifecycle Steps & Connecting Line (once: true, clearProps: 'all')
-    const lifecycleTl = gsap.timeline({
-      scrollTrigger: {
-        trigger: '#lifecycle',
-        start: 'top 85%',
-        once: true,
-      },
+    gsap.from('.gsap-lifecycle-header', {
+      scrollTrigger: { trigger: '#lifecycle', start: 'top 92%', once: true },
+      y: 20, opacity: 0, duration: 0.5, clearProps: 'all'
     });
-    lifecycleTl
-      .from('.gsap-lifecycle-header', { y: 25, autoAlpha: 0, duration: 0.5, clearProps: 'all' })
-      .from('.gsap-lifecycle-line', { scaleX: 0, transformOrigin: 'left center', duration: 0.8, ease: 'power2.inOut', clearProps: 'all' }, '-=0.2')
-      .from('.gsap-step-card', { y: 30, autoAlpha: 0, stagger: 0.1, duration: 0.5, ease: 'power2.out', clearProps: 'all' }, '-=0.4');
+    gsap.from('.gsap-lifecycle-line', {
+      scrollTrigger: { trigger: '#lifecycle', start: 'top 92%', once: true },
+      scaleX: 0, transformOrigin: 'left center', duration: 0.7, ease: 'power2.inOut', clearProps: 'all'
+    });
+    gsap.from('.gsap-step-card', {
+      scrollTrigger: { trigger: '#lifecycle', start: 'top 92%', once: true },
+      y: 25, opacity: 0, stagger: 0.08, duration: 0.45, ease: 'power2.out', clearProps: 'all'
+    });
 
     // 6. Notices Cards (once: true, clearProps: 'all')
-    const noticesTl = gsap.timeline({
-      scrollTrigger: {
-        trigger: '#notices',
-        start: 'top 85%',
-        once: true,
-      },
+    gsap.from('.gsap-notices-header', {
+      scrollTrigger: { trigger: '#notices', start: 'top 92%', once: true },
+      y: 20, opacity: 0, duration: 0.5, clearProps: 'all'
     });
-    noticesTl
-      .from('.gsap-notices-header', { y: 25, autoAlpha: 0, duration: 0.5, clearProps: 'all' })
-      .from('.gsap-notice-card', { y: 30, autoAlpha: 0, stagger: 0.1, duration: 0.5, ease: 'power2.out', clearProps: 'all' }, '-=0.3');
+    gsap.from('.gsap-notice-card', {
+      scrollTrigger: { trigger: '#notices', start: 'top 92%', once: true },
+      y: 25, opacity: 0, stagger: 0.08, duration: 0.45, ease: 'power2.out', clearProps: 'all'
+    });
 
     // 7. Verify Section (once: true, clearProps: 'all')
-    const verifyTl = gsap.timeline({
-      scrollTrigger: {
-        trigger: '#verify',
-        start: 'top 85%',
-        once: true,
-      },
+    gsap.from('.gsap-verify-header', {
+      scrollTrigger: { trigger: '#verify', start: 'top 92%', once: true },
+      y: 20, opacity: 0, duration: 0.5, clearProps: 'all'
     });
-    verifyTl
-      .from('.gsap-verify-header', { y: 25, autoAlpha: 0, duration: 0.5, clearProps: 'all' })
-      .from('.gsap-verify-search', { y: 25, autoAlpha: 0, duration: 0.5, clearProps: 'all' }, '-=0.2')
-      .from('.gsap-verify-card', { y: 30, autoAlpha: 0, duration: 0.6, ease: 'power2.out', clearProps: 'all' }, '-=0.2');
+    gsap.from('.gsap-verify-search', {
+      scrollTrigger: { trigger: '#verify', start: 'top 92%', once: true },
+      y: 20, opacity: 0, duration: 0.5, clearProps: 'all'
+    });
+    gsap.from('.gsap-verify-card', {
+      scrollTrigger: { trigger: '#verify', start: 'top 92%', once: true },
+      y: 25, opacity: 0, duration: 0.5, ease: 'power2.out', clearProps: 'all'
+    });
 
     // 8. FAQ Accordion Items (once: true, clearProps: 'all')
-    const faqsTl = gsap.timeline({
-      scrollTrigger: {
-        trigger: '#faqs',
-        start: 'top 85%',
-        once: true,
-      },
+    gsap.from('.gsap-faq-header', {
+      scrollTrigger: { trigger: '#faqs', start: 'top 92%', once: true },
+      y: 20, opacity: 0, duration: 0.5, clearProps: 'all'
     });
-    faqsTl
-      .from('.gsap-faq-header', { y: 25, autoAlpha: 0, duration: 0.5, clearProps: 'all' })
-      .from('.gsap-faq-item', { y: 25, autoAlpha: 0, stagger: 0.08, duration: 0.4, ease: 'power2.out', clearProps: 'all' }, '-=0.3');
+    gsap.from('.gsap-faq-item', {
+      scrollTrigger: { trigger: '#faqs', start: 'top 92%', once: true },
+      y: 20, opacity: 0, stagger: 0.06, duration: 0.4, ease: 'power2.out', clearProps: 'all'
+    });
 
     // 9. CTA Banner (once: true, clearProps: 'all')
     gsap.from('.gsap-cta-banner', {
       scrollTrigger: {
         trigger: '.gsap-cta-banner',
-        start: 'top 90%',
+        start: 'top 92%',
         once: true,
       },
-      scale: 0.95,
-      autoAlpha: 0,
-      duration: 0.7,
+      scale: 0.96,
+      opacity: 0,
+      duration: 0.6,
       ease: 'power3.out',
       clearProps: 'all',
     });
@@ -1098,7 +1094,7 @@ export const HomePage: React.FC = () => {
             ].map((faq, idx) => {
               const isOpen = expandedFaq === idx;
               return (
-                <div key={idx} className={`gsap-faq-item card-3d overflow-hidden transition-all duration-200 ${isOpen ? 'border-[#1E5AA8] shadow-md shadow-blue-100/50' : 'border-slate-200 bg-slate-50/60'}`}>
+                <div key={idx} className={`gsap-faq-item card-3d overflow-hidden transition-[border-color,box-shadow,background-color] duration-200 ${isOpen ? 'border-[#1E5AA8] shadow-md shadow-blue-100/50' : 'border-slate-200 bg-slate-50/60'}`}>
                   <button onClick={() => setExpandedFaq(isOpen ? null : idx)}
                     className="w-full p-5 text-left flex items-center justify-between gap-4 font-bold text-sm text-[#0F2747] cursor-pointer hover:bg-blue-50/30 transition-colors">
                     <span>{faq.q}</span>

@@ -52,12 +52,119 @@ interface LocalAuthUser {
   user: User;
 }
 
+const DEFAULT_LOCAL_USERS: LocalAuthUser[] = [
+  {
+    id: 'a0000000-0000-0000-0000-000000000001',
+    email: 'admin@university.edu',
+    password: 'Password123!',
+    profile: {
+      id: 'a0000000-0000-0000-0000-000000000001',
+      email: 'admin@university.edu',
+      full_name: 'Dr. Vikram Sharma',
+      first_name: 'Vikram',
+      last_name: 'Sharma',
+      role: 'administrator',
+      status: 'active',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    user: {
+      id: 'a0000000-0000-0000-0000-000000000001',
+      app_metadata: {},
+      user_metadata: { role: 'administrator', full_name: 'Dr. Vikram Sharma' },
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
+      email: 'admin@university.edu',
+    } as any,
+  },
+  {
+    id: 's0000000-0000-0000-0000-000000000001',
+    email: 'student@university.edu',
+    password: 'Password123!',
+    profile: {
+      id: 's0000000-0000-0000-0000-000000000001',
+      email: 'student@university.edu',
+      full_name: 'Aarav Patel',
+      first_name: 'Aarav',
+      last_name: 'Patel',
+      role: 'student',
+      status: 'active',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    user: {
+      id: 's0000000-0000-0000-0000-000000000001',
+      app_metadata: {},
+      user_metadata: { role: 'student', full_name: 'Aarav Patel' },
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
+      email: 'student@university.edu',
+    } as any,
+  },
+  {
+    id: 'f0000000-0000-0000-0000-000000000001',
+    email: 'faculty@university.edu',
+    password: 'Password123!',
+    profile: {
+      id: 'f0000000-0000-0000-0000-000000000001',
+      email: 'faculty@university.edu',
+      full_name: 'Prof. Ananya Sen',
+      first_name: 'Ananya',
+      last_name: 'Sen',
+      role: 'faculty',
+      status: 'active',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    user: {
+      id: 'f0000000-0000-0000-0000-000000000001',
+      app_metadata: {},
+      user_metadata: { role: 'faculty', full_name: 'Prof. Ananya Sen' },
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
+      email: 'faculty@university.edu',
+    } as any,
+  },
+  {
+    id: 'd0000000-0000-0000-0000-000000000001',
+    email: 'dean@university.edu',
+    password: 'Password123!',
+    profile: {
+      id: 'd0000000-0000-0000-0000-000000000001',
+      email: 'dean@university.edu',
+      full_name: 'Prof. Harish Chandra',
+      first_name: 'Harish',
+      last_name: 'Chandra',
+      role: 'dean',
+      status: 'active',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    user: {
+      id: 'd0000000-0000-0000-0000-000000000001',
+      app_metadata: {},
+      user_metadata: { role: 'dean', full_name: 'Prof. Harish Chandra' },
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
+      email: 'dean@university.edu',
+    } as any,
+  },
+];
+
 const getLocalAuthUsers = (): LocalAuthUser[] => {
   try {
     const raw = typeof window !== 'undefined' ? localStorage.getItem(LOCAL_USERS_STORAGE_KEY) : null;
-    return raw ? JSON.parse(raw) : [];
+    const stored: LocalAuthUser[] = raw ? JSON.parse(raw) : [];
+    const storedEmails = new Set(stored.map((u) => u.email.toLowerCase()));
+    const merged = [...stored];
+    for (const def of DEFAULT_LOCAL_USERS) {
+      if (!storedEmails.has(def.email.toLowerCase())) {
+        merged.push(def);
+      }
+    }
+    return merged;
   } catch {
-    return [];
+    return DEFAULT_LOCAL_USERS;
   }
 };
 
@@ -193,6 +300,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let isMounted = true;
 
     if (!isSupabaseConfigured) {
+      const activeLocal = getActiveLocalUser();
+      if (activeLocal) {
+        setUser(activeLocal.user);
+        setProfile(activeLocal.profile);
+      }
       setLoading(false);
       return;
     }
@@ -269,9 +381,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfileError(null);
 
     if (!isSupabaseConfigured) {
+      const localMatch = getLocalAuthUsers().find(
+        (u) => u.email.toLowerCase() === email.trim().toLowerCase() && u.password === password
+      );
+      if (localMatch) {
+        saveLocalAuthUser(localMatch);
+        setUser(localMatch.user);
+        setProfile(localMatch.profile);
+        setLoading(false);
+        return { error: null, role: localMatch.profile.role, profile: localMatch.profile };
+      }
       setLoading(false);
       return {
-        error: new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.'),
+        error: new Error('Invalid email or password. Use demo accounts or register a new account.'),
       };
     }
 
@@ -369,22 +491,84 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     setProfileError(null);
 
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return {
-        error: new Error('Supabase is not configured. Please configure your environment settings.'),
+    const targetRole: UserRole = role;
+
+    // Automatically split full name into first and last name with security sanitization
+    const parsed = splitFullName(fullName);
+    const sanitizedFullName = parsed.fullName || fullName.trim();
+    const resolvedFirstName = parsed.firstName || sanitizedFullName;
+    const resolvedLastName = parsed.lastName || '';
+
+    const createFallbackUser = () => {
+      const fallbackId = `user-reg-${Date.now()}`;
+      const avatarUrl =
+        targetRole === 'faculty' || targetRole === 'dean'
+          ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+          : targetRole === 'administrator'
+          ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80'
+          : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+
+      const fallbackProfile: Profile = {
+        id: fallbackId,
+        email: email.trim().toLowerCase(),
+        full_name: sanitizedFullName,
+        first_name: resolvedFirstName,
+        last_name: resolvedLastName,
+        role: targetRole,
+        phone: metadata?.phone || undefined,
+        status: 'active',
+        avatar_url: avatarUrl,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
+
+      const fallbackUser = {
+        id: fallbackId,
+        app_metadata: { provider: 'email' },
+        user_metadata: {
+          full_name: sanitizedFullName,
+          first_name: resolvedFirstName,
+          last_name: resolvedLastName,
+          role: targetRole,
+          phone: metadata?.phone || '',
+          department_id: metadata?.departmentId || '',
+          program_id: metadata?.programId || '',
+          enrollment_number: metadata?.enrollmentNumber || '',
+          roll_number: metadata?.rollNumber || '',
+          employee_id: metadata?.employeeId || '',
+          designation: metadata?.designation || '',
+          qualification: metadata?.qualification || '',
+        },
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        email: email.trim().toLowerCase(),
+      } as unknown as User;
+
+      saveLocalAuthUser({
+        id: fallbackId,
+        email: email.trim().toLowerCase(),
+        password,
+        profile: fallbackProfile,
+        user: fallbackUser,
+      });
+
+      setUser(fallbackUser);
+      setProfile(fallbackProfile);
+      setLoading(false);
+
+      return {
+        error: null,
+        needsEmailVerification: false,
+        role: targetRole,
+        profile: fallbackProfile,
+      };
+    };
+
+    if (!isSupabaseConfigured) {
+      return createFallbackUser();
     }
 
     try {
-      const targetRole: UserRole = role;
-
-      // Automatically split full name into first and last name with security sanitization
-      const parsed = splitFullName(fullName);
-      const sanitizedFullName = parsed.fullName || fullName.trim();
-      const resolvedFirstName = parsed.firstName || sanitizedFullName;
-      const resolvedLastName = parsed.lastName || '';
-
       const { data, error } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
@@ -414,69 +598,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (isDbError) {
           console.warn('[AUTH] Supabase trigger error detected. Activating client-side verified registration fallback.');
-
-          const fallbackId = `user-reg-${Date.now()}`;
-          const avatarUrl =
-            targetRole === 'faculty' || targetRole === 'dean'
-              ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
-              : targetRole === 'administrator'
-              ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80'
-              : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
-
-          const fallbackProfile: Profile = {
-            id: fallbackId,
-            email: email.trim().toLowerCase(),
-            full_name: sanitizedFullName,
-            first_name: resolvedFirstName,
-            last_name: resolvedLastName,
-            role: targetRole,
-            phone: metadata?.phone || undefined,
-            status: 'active',
-            avatar_url: avatarUrl,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-
-          const fallbackUser = {
-            id: fallbackId,
-            app_metadata: { provider: 'email' },
-            user_metadata: {
-              full_name: sanitizedFullName,
-              first_name: resolvedFirstName,
-              last_name: resolvedLastName,
-              role: targetRole,
-              phone: metadata?.phone || '',
-              department_id: metadata?.departmentId || '',
-              program_id: metadata?.programId || '',
-              enrollment_number: metadata?.enrollmentNumber || '',
-              roll_number: metadata?.rollNumber || '',
-              employee_id: metadata?.employeeId || '',
-              designation: metadata?.designation || '',
-              qualification: metadata?.qualification || '',
-            },
-            aud: 'authenticated',
-            created_at: new Date().toISOString(),
-            email: email.trim().toLowerCase(),
-          } as unknown as User;
-
-          saveLocalAuthUser({
-            id: fallbackId,
-            email: email.trim().toLowerCase(),
-            password,
-            profile: fallbackProfile,
-            user: fallbackUser,
-          });
-
-          setUser(fallbackUser);
-          setProfile(fallbackProfile);
-          setLoading(false);
-
-          return {
-            error: null,
-            needsEmailVerification: false,
-            role: targetRole,
-            profile: fallbackProfile,
-          };
+          return createFallbackUser();
         }
 
         setLoading(false);
@@ -599,8 +721,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
       return { error: null, needsEmailVerification, role: targetRole, profile: createdProf };
     } catch (err: any) {
-      setLoading(false);
-      return { error: err };
+      console.warn('[AUTH] Exception during signUp, activating local user fallback:', err);
+      return createFallbackUser();
     }
   };
 

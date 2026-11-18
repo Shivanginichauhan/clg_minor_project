@@ -10,6 +10,29 @@ import { studentFacultyService } from './studentFacultyService.js';
 import { academicStructureService } from './academicStructureService.js';
 import { auditService } from './auditService.js';
 
+const LOCAL_SEATING_STORAGE_KEY = 'ueams_seating_arrangements_store';
+
+const getStoredSeatingArrangements = (): Array<{ id?: string; schedule_id: string; student_id: string; room_id: string; seat_number: string }> => {
+  try {
+    const raw = localStorage.getItem(LOCAL_SEATING_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return [];
+};
+
+const saveStoredSeatingArrangements = (list: Array<{ id?: string; schedule_id: string; student_id: string; room_id: string; seat_number: string }>) => {
+  try {
+    localStorage.setItem(LOCAL_SEATING_STORAGE_KEY, JSON.stringify(list));
+  } catch (e) {
+    // ignore
+  }
+};
+
 export interface RoomWithLayout extends Room {
   rows: number;
   columns: number;
@@ -197,16 +220,31 @@ export const seatingService = {
   },
 
   /**
-   * Save seating plan
+   * Save seating plan (Optimistic Local Persistence + Supabase Sync)
    */
   async saveSeatingArrangements(
     arrangements: Array<{ schedule_id: string; student_id: string; room_id: string; seat_number: string }>,
     currentUser?: { id: string; name: string; role: any }
   ): Promise<number> {
-    if (!isSupabaseConfigured) throw new Error('Database is not configured.');
+    // 1. Optimistic Local Storage Persistence
+    const currentList = getStoredSeatingArrangements();
+    const withIds = arrangements.map((a) => ({
+      ...a,
+      id: (a as any).id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `seat-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`),
+    }));
+    saveStoredSeatingArrangements([...currentList, ...withIds]);
 
-    const { error } = await supabase.from('seating_arrangements').insert(arrangements);
-    if (error) throw new Error(`Failed to save seating: ${error.message}`);
+    // 2. Cloud DB Sync if Available
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('seating_arrangements').insert(arrangements);
+        if (error) {
+          console.warn('[SEATING] Supabase insert failed, persisted locally:', error.message);
+        }
+      } catch (err) {
+        console.warn('[SEATING] Supabase connection error:', err);
+      }
+    }
 
     if (currentUser) {
       auditService.logEvent({

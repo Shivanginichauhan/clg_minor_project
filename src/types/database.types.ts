@@ -1,7 +1,7 @@
 export type UserRole = 'student' | 'faculty' | 'administrator' | 'dean';
 export type UserStatus = 'active' | 'inactive' | 'suspended' | 'graduated' | 'on_leave';
 export type ExamScheduleStatus = 'draft' | 'submitted' | 'approved' | 'published';
-export type MarksStatus = 'draft' | 'submitted' | 'verified' | 'locked';
+export type MarksStatus = 'draft' | 'submitted' | 'verified' | 'locked' | 'published' | 'moderated';
 export type ResultStatus = 'draft' | 'pending_approval' | 'approved' | 'published';
 export type AttendanceStatus = 'present' | 'absent' | 'excused';
 export type ExamFormStatus = 'submitted' | 'approved' | 'rejected' | 'admit_card_generated';
