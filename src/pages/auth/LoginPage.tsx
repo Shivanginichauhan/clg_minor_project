@@ -38,12 +38,12 @@ export const LoginPage: React.FC = () => {
   useGSAP(() => {
     const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
 
-    tl.from('.gsap-login-badge', { y: -20, autoAlpha: 0, duration: 0.5 })
-      .from('.gsap-login-crest', { scale: 0.85, autoAlpha: 0, duration: 0.6, ease: 'back.out(1.6)' }, '-=0.25')
-      .from('.gsap-login-title', { y: 20, autoAlpha: 0, duration: 0.5 }, '-=0.3')
-      .from('.gsap-login-bullet', { x: -20, autoAlpha: 0, stagger: 0.08, duration: 0.4 }, '-=0.2')
-      .from('.gsap-login-form-card', { y: 25, autoAlpha: 0, duration: 0.6, ease: 'power2.out' }, '-=0.4')
-      .from('.gsap-login-quickfill', { scale: 0.92, autoAlpha: 0, stagger: 0.06, duration: 0.35, ease: 'back.out(1.4)' }, '-=0.2');
+    tl.from('.gsap-login-badge', { y: -20, autoAlpha: 0, duration: 0.5, clearProps: 'all' })
+      .from('.gsap-login-crest', { scale: 0.85, autoAlpha: 0, duration: 0.6, ease: 'back.out(1.6)', clearProps: 'all' }, '-=0.25')
+      .from('.gsap-login-title', { y: 20, autoAlpha: 0, duration: 0.5, clearProps: 'all' }, '-=0.3')
+      .from('.gsap-login-bullet', { x: -20, autoAlpha: 0, stagger: 0.08, duration: 0.4, clearProps: 'all' }, '-=0.2')
+      .from('.gsap-login-form-card', { y: 25, autoAlpha: 0, duration: 0.6, ease: 'power2.out', clearProps: 'all' }, '-=0.4')
+      .from('.gsap-login-quickfill', { scale: 0.92, autoAlpha: 0, stagger: 0.06, duration: 0.35, ease: 'back.out(1.4)', clearProps: 'all' }, '-=0.2');
 
     // Subtle gentle breathing on institutional seal
     gsap.to('.gsap-login-crest', {

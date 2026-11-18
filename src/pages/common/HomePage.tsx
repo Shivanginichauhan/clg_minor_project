@@ -189,201 +189,115 @@ export const HomePage: React.FC = () => {
     // 1. Hero Entrance Timeline
     const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
     heroTl
-      .from('.gsap-hero-badge', { y: -25, autoAlpha: 0, duration: 0.6 })
-      .from('.gsap-hero-title', { y: 35, autoAlpha: 0, duration: 0.8 }, '-=0.35')
-      .from('.gsap-hero-desc', { y: 20, autoAlpha: 0, duration: 0.6 }, '-=0.4')
-      .from('.gsap-hero-cta', { scale: 0.92, y: 15, autoAlpha: 0, stagger: 0.1, duration: 0.5, ease: 'back.out(1.6)' }, '-=0.3')
-      .from('.gsap-hero-pill', { y: 15, autoAlpha: 0, stagger: 0.05, duration: 0.4 }, '-=0.2')
-      .from('.gsap-hero-card', { y: 40, scale: 0.94, autoAlpha: 0, duration: 0.8, ease: 'power3.out' }, '-=0.5');
+      .from('.gsap-hero-badge', { y: -25, autoAlpha: 0, duration: 0.6, clearProps: 'all' })
+      .from('.gsap-hero-title', { y: 35, autoAlpha: 0, duration: 0.8, clearProps: 'all' }, '-=0.35')
+      .from('.gsap-hero-desc', { y: 20, autoAlpha: 0, duration: 0.6, clearProps: 'all' }, '-=0.4')
+      .from('.gsap-hero-cta', { scale: 0.92, y: 15, autoAlpha: 0, stagger: 0.1, duration: 0.5, ease: 'back.out(1.6)', clearProps: 'all' }, '-=0.3')
+      .from('.gsap-hero-pill', { y: 15, autoAlpha: 0, stagger: 0.05, duration: 0.4, clearProps: 'all' }, '-=0.2')
+      .from('.gsap-hero-card', { y: 40, scale: 0.94, autoAlpha: 0, duration: 0.8, ease: 'power3.out', clearProps: 'opacity,visibility' }, '-=0.5');
 
     // 2. Ambient Floating Motion on Hero Card
     gsap.to('.gsap-hero-float', {
-      y: -12,
+      y: -10,
       duration: 3.2,
       repeat: -1,
       yoyo: true,
       ease: 'sine.inOut',
     });
 
-    // 3. Stats Strip with ScrollTrigger
+    // 3. Stats Strip with ScrollTrigger (once: true, clearProps: 'all')
     gsap.from('.gsap-stat-card', {
       scrollTrigger: {
         trigger: '.gsap-stats-container',
-        start: 'top 85%',
-        toggleActions: 'play none none reverse',
+        start: 'top 92%',
+        once: true,
       },
-      y: 40,
+      y: 35,
       autoAlpha: 0,
-      stagger: 0.12,
-      duration: 0.7,
+      stagger: 0.1,
+      duration: 0.6,
       ease: 'back.out(1.4)',
+      clearProps: 'all',
     });
 
-    // 4. Role Portals Section
-    gsap.from('.gsap-portals-header', {
+    // 4. Role Portals Section (once: true, clearProps: 'all')
+    const portalsTl = gsap.timeline({
       scrollTrigger: {
         trigger: '#portals',
-        start: 'top 80%',
-        toggleActions: 'play none none reverse',
+        start: 'top 88%',
+        once: true,
       },
-      y: 30,
-      autoAlpha: 0,
-      duration: 0.7,
-      ease: 'power3.out',
     });
+    portalsTl
+      .from('.gsap-portals-header', { y: 25, autoAlpha: 0, duration: 0.5, clearProps: 'all' })
+      .from('.gsap-portal-tab', { scale: 0.92, autoAlpha: 0, stagger: 0.06, duration: 0.4, ease: 'back.out(1.4)', clearProps: 'all' }, '-=0.2');
 
-    gsap.from('.gsap-portal-tab', {
-      scrollTrigger: {
-        trigger: '.gsap-portal-tab-container',
-        start: 'top 85%',
-        toggleActions: 'play none none reverse',
-      },
-      scale: 0.9,
-      autoAlpha: 0,
-      stagger: 0.08,
-      duration: 0.4,
-      ease: 'back.out(1.5)',
-    });
-
-    // 5. Exam Lifecycle Steps & Connecting Line
-    gsap.from('.gsap-lifecycle-header', {
+    // 5. Exam Lifecycle Steps & Connecting Line (once: true, clearProps: 'all')
+    const lifecycleTl = gsap.timeline({
       scrollTrigger: {
         trigger: '#lifecycle',
-        start: 'top 80%',
-        toggleActions: 'play none none reverse',
+        start: 'top 85%',
+        once: true,
       },
-      y: 30,
-      autoAlpha: 0,
-      duration: 0.7,
-      ease: 'power3.out',
     });
+    lifecycleTl
+      .from('.gsap-lifecycle-header', { y: 25, autoAlpha: 0, duration: 0.5, clearProps: 'all' })
+      .from('.gsap-lifecycle-line', { scaleX: 0, transformOrigin: 'left center', duration: 0.8, ease: 'power2.inOut', clearProps: 'all' }, '-=0.2')
+      .from('.gsap-step-card', { y: 30, autoAlpha: 0, stagger: 0.1, duration: 0.5, ease: 'power2.out', clearProps: 'all' }, '-=0.4');
 
-    gsap.from('.gsap-lifecycle-line', {
-      scrollTrigger: {
-        trigger: '.gsap-lifecycle-grid',
-        start: 'top 80%',
-        toggleActions: 'play none none reverse',
-      },
-      scaleX: 0,
-      transformOrigin: 'left center',
-      duration: 1.2,
-      ease: 'power2.inOut',
-    });
-
-    gsap.from('.gsap-step-card', {
-      scrollTrigger: {
-        trigger: '.gsap-lifecycle-grid',
-        start: 'top 80%',
-        toggleActions: 'play none none reverse',
-      },
-      y: 40,
-      autoAlpha: 0,
-      stagger: 0.14,
-      duration: 0.7,
-      ease: 'power3.out',
-    });
-
-    // 6. Notices Cards
-    gsap.from('.gsap-notices-header', {
+    // 6. Notices Cards (once: true, clearProps: 'all')
+    const noticesTl = gsap.timeline({
       scrollTrigger: {
         trigger: '#notices',
-        start: 'top 80%',
-        toggleActions: 'play none none reverse',
+        start: 'top 85%',
+        once: true,
       },
-      y: 25,
-      autoAlpha: 0,
-      duration: 0.6,
-      ease: 'power3.out',
     });
+    noticesTl
+      .from('.gsap-notices-header', { y: 25, autoAlpha: 0, duration: 0.5, clearProps: 'all' })
+      .from('.gsap-notice-card', { y: 30, autoAlpha: 0, stagger: 0.1, duration: 0.5, ease: 'power2.out', clearProps: 'all' }, '-=0.3');
 
-    gsap.from('.gsap-notice-card', {
-      scrollTrigger: {
-        trigger: '#notices',
-        start: 'top 80%',
-        toggleActions: 'play none none reverse',
-      },
-      y: 35,
-      autoAlpha: 0,
-      stagger: 0.12,
-      duration: 0.6,
-      ease: 'power3.out',
-    });
-
-    // 7. Verify Section
-    gsap.from('.gsap-verify-header', {
+    // 7. Verify Section (once: true, clearProps: 'all')
+    const verifyTl = gsap.timeline({
       scrollTrigger: {
         trigger: '#verify',
-        start: 'top 80%',
-        toggleActions: 'play none none reverse',
-      },
-      y: 30,
-      autoAlpha: 0,
-      duration: 0.7,
-      ease: 'power3.out',
-    });
-
-    gsap.from('.gsap-verify-search', {
-      scrollTrigger: {
-        trigger: '.gsap-verify-search',
         start: 'top 85%',
-        toggleActions: 'play none none reverse',
+        once: true,
       },
-      y: 25,
-      autoAlpha: 0,
-      duration: 0.6,
-      ease: 'power3.out',
     });
+    verifyTl
+      .from('.gsap-verify-header', { y: 25, autoAlpha: 0, duration: 0.5, clearProps: 'all' })
+      .from('.gsap-verify-search', { y: 25, autoAlpha: 0, duration: 0.5, clearProps: 'all' }, '-=0.2')
+      .from('.gsap-verify-card', { y: 30, autoAlpha: 0, duration: 0.6, ease: 'power2.out', clearProps: 'all' }, '-=0.2');
 
-    gsap.from('.gsap-verify-card', {
-      scrollTrigger: {
-        trigger: '.gsap-verify-card',
-        start: 'top 85%',
-        toggleActions: 'play none none reverse',
-      },
-      y: 35,
-      autoAlpha: 0,
-      duration: 0.7,
-      ease: 'power3.out',
-    });
-
-    // 8. FAQ Accordion Items
-    gsap.from('.gsap-faq-header', {
+    // 8. FAQ Accordion Items (once: true, clearProps: 'all')
+    const faqsTl = gsap.timeline({
       scrollTrigger: {
         trigger: '#faqs',
-        start: 'top 80%',
-        toggleActions: 'play none none reverse',
+        start: 'top 85%',
+        once: true,
       },
-      y: 25,
-      autoAlpha: 0,
-      duration: 0.6,
-      ease: 'power3.out',
     });
+    faqsTl
+      .from('.gsap-faq-header', { y: 25, autoAlpha: 0, duration: 0.5, clearProps: 'all' })
+      .from('.gsap-faq-item', { y: 25, autoAlpha: 0, stagger: 0.08, duration: 0.4, ease: 'power2.out', clearProps: 'all' }, '-=0.3');
 
-    gsap.from('.gsap-faq-item', {
-      scrollTrigger: {
-        trigger: '#faqs',
-        start: 'top 80%',
-        toggleActions: 'play none none reverse',
-      },
-      y: 25,
-      autoAlpha: 0,
-      stagger: 0.08,
-      duration: 0.5,
-      ease: 'power2.out',
-    });
-
-    // 9. CTA Banner
+    // 9. CTA Banner (once: true, clearProps: 'all')
     gsap.from('.gsap-cta-banner', {
       scrollTrigger: {
         trigger: '.gsap-cta-banner',
-        start: 'top 85%',
-        toggleActions: 'play none none reverse',
+        start: 'top 90%',
+        once: true,
       },
-      scale: 0.94,
+      scale: 0.95,
       autoAlpha: 0,
-      duration: 0.8,
+      duration: 0.7,
       ease: 'power3.out',
+      clearProps: 'all',
     });
+
+    // Refresh ScrollTrigger calculations after initial paint
+    ScrollTrigger.refresh();
   }, { scope: mainContainerRef });
 
   // Role Tab Switching Transition
@@ -391,7 +305,7 @@ export const HomePage: React.FC = () => {
     gsap.fromTo(
       '.gsap-portal-card',
       { autoAlpha: 0, y: 16, scale: 0.98 },
-      { autoAlpha: 1, y: 0, scale: 1, duration: 0.35, ease: 'power2.out' }
+      { autoAlpha: 1, y: 0, scale: 1, duration: 0.35, ease: 'power2.out', clearProps: 'all' }
     );
   }, { dependencies: [selectedRoleTab], scope: mainContainerRef });
 
