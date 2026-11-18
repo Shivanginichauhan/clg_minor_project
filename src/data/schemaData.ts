@@ -1,0 +1,302 @@
+export interface TableColumn {
+  name: string;
+  type: string;
+  constraint?: string;
+  description: string;
+}
+
+export interface TableDefinition {
+  name: string;
+  category: 'core' | 'academic' | 'exam' | 'results' | 'system';
+  description: string;
+  columns: TableColumn[];
+  rlsOverview: string;
+}
+
+export const schemaTables: TableDefinition[] = [
+  {
+    name: 'profiles',
+    category: 'core',
+    description: 'Extends Supabase auth.users with university role (student, faculty, administrator, dean)',
+    rlsOverview: 'Users read own profile; Admins & Deans read all; Only Admins can elevate roles.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK, FK -> auth.users.id', description: 'Unique user identifier' },
+      { name: 'full_name', type: 'VARCHAR(150)', constraint: 'NOT NULL', description: 'Full legal name' },
+      { name: 'email', type: 'VARCHAR(255)', constraint: 'NOT NULL, UNIQUE', description: 'University email address' },
+      { name: 'role', type: 'user_role', constraint: 'NOT NULL, DEFAULT student', description: 'student | faculty | administrator | dean' },
+      { name: 'phone', type: 'VARCHAR(20)', description: 'Contact telephone' },
+      { name: 'status', type: 'user_status', constraint: 'DEFAULT active', description: 'active | inactive | suspended' },
+      { name: 'created_at', type: 'TIMESTAMPTZ', constraint: 'DEFAULT NOW()', description: 'Creation timestamp' },
+    ],
+  },
+  {
+    name: 'departments',
+    category: 'academic',
+    description: 'Academic departments (e.g., Computer Applications, IT, Electrical Engineering)',
+    rlsOverview: 'Public read for authenticated users; Admins create & edit.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Department unique ID' },
+      { name: 'code', type: 'VARCHAR(20)', constraint: 'UNIQUE, NOT NULL', description: 'Dept code (e.g., "DCA")' },
+      { name: 'name', type: 'VARCHAR(150)', constraint: 'NOT NULL', description: 'Department title' },
+      { name: 'head_of_department_id', type: 'UUID', constraint: 'FK -> profiles.id', description: 'HOD profile reference' },
+    ],
+  },
+  {
+    name: 'programs',
+    category: 'academic',
+    description: 'Degree programs (e.g., Master of Computer Applications - MCA)',
+    rlsOverview: 'Public read for authenticated users; Admins create & edit.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Program unique ID' },
+      { name: 'department_id', type: 'UUID', constraint: 'FK -> departments.id', description: 'Parent department' },
+      { name: 'code', type: 'VARCHAR(20)', constraint: 'UNIQUE, NOT NULL', description: 'Program code (e.g., "MCA")' },
+      { name: 'name', type: 'VARCHAR(150)', constraint: 'NOT NULL', description: 'Degree title' },
+      { name: 'total_semesters', type: 'INT', constraint: 'CHECK (1 to 12)', description: 'Total academic terms' },
+    ],
+  },
+  {
+    name: 'academic_sessions',
+    category: 'academic',
+    description: 'Annual academic years (e.g., "2025-2026")',
+    rlsOverview: 'Public read for authenticated users; Admins configure active sessions.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Session unique ID' },
+      { name: 'name', type: 'VARCHAR(50)', constraint: 'UNIQUE, NOT NULL', description: 'Session identifier' },
+      { name: 'start_date', type: 'DATE', constraint: 'NOT NULL', description: 'Session start date' },
+      { name: 'end_date', type: 'DATE', constraint: 'NOT NULL', description: 'Session end date' },
+      { name: 'is_current', type: 'BOOLEAN', constraint: 'DEFAULT FALSE', description: 'Current active academic year flag' },
+    ],
+  },
+  {
+    name: 'semesters',
+    category: 'academic',
+    description: 'Program semester terms associated with academic sessions',
+    rlsOverview: 'Public read for authenticated users; Admins manage term milestones.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Semester unique ID' },
+      { name: 'program_id', type: 'UUID', constraint: 'FK -> programs.id', description: 'Degree program' },
+      { name: 'session_id', type: 'UUID', constraint: 'FK -> academic_sessions.id', description: 'Academic year' },
+      { name: 'semester_number', type: 'INT', constraint: 'CHECK (1 to 12)', description: 'e.g. 1st, 2nd, 3rd, 4th' },
+      { name: 'term_type', type: 'VARCHAR(10)', constraint: 'odd | even | summer', description: 'Term season' },
+    ],
+  },
+  {
+    name: 'subjects',
+    category: 'academic',
+    description: 'Curriculum courses with credit weightage, pass threshold, and marks breakdown',
+    rlsOverview: 'Public read for authenticated users; Admins manage syllabus courses.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Subject unique ID' },
+      { name: 'code', type: 'VARCHAR(20)', constraint: 'UNIQUE, NOT NULL', description: 'Course code (e.g., "MCA-101")' },
+      { name: 'name', type: 'VARCHAR(150)', constraint: 'NOT NULL', description: 'Subject title' },
+      { name: 'credits', type: 'NUMERIC(3,1)', constraint: 'NOT NULL', description: 'Credit value (e.g., 4.0)' },
+      { name: 'max_internal_marks', type: 'NUMERIC(5,2)', constraint: 'DEFAULT 40.00', description: 'Internal assessment max' },
+      { name: 'max_external_marks', type: 'NUMERIC(5,2)', constraint: 'DEFAULT 60.00', description: 'End-term exam max' },
+    ],
+  },
+  {
+    name: 'students',
+    category: 'core',
+    description: 'Student academic records linked to profiles and enrollment numbers',
+    rlsOverview: 'Students view own record; Faculty, Admins & Deans can query student roster.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Student unique ID' },
+      { name: 'user_id', type: 'UUID', constraint: 'FK -> profiles.id, UNIQUE', description: 'User account mapping' },
+      { name: 'enrollment_number', type: 'VARCHAR(50)', constraint: 'UNIQUE, NOT NULL', description: 'University enrollment ID' },
+      { name: 'roll_number', type: 'VARCHAR(50)', constraint: 'NOT NULL', description: 'Class roll number' },
+      { name: 'department_id', type: 'UUID', constraint: 'FK -> departments.id', description: 'Enrolled department' },
+      { name: 'program_id', type: 'UUID', constraint: 'FK -> programs.id', description: 'Degree program' },
+    ],
+  },
+  {
+    name: 'faculty',
+    category: 'core',
+    description: 'Faculty profiles, employee IDs, designations, and departmental appointments',
+    rlsOverview: 'Faculty view own record; Admins manage faculty roster.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Faculty unique ID' },
+      { name: 'user_id', type: 'UUID', constraint: 'FK -> profiles.id, UNIQUE', description: 'User account mapping' },
+      { name: 'employee_id', type: 'VARCHAR(50)', constraint: 'UNIQUE, NOT NULL', description: 'Staff employee code' },
+      { name: 'department_id', type: 'UUID', constraint: 'FK -> departments.id', description: 'Assigned department' },
+      { name: 'designation', type: 'VARCHAR(100)', constraint: 'NOT NULL', description: 'e.g. Associate Professor' },
+    ],
+  },
+  {
+    name: 'enrollments',
+    category: 'academic',
+    description: 'Student course registrations per semester term',
+    rlsOverview: 'Students view own enrolled subjects; Admins manage enrollment rosters.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Registration unique ID' },
+      { name: 'student_id', type: 'UUID', constraint: 'FK -> students.id', description: 'Enrolled student' },
+      { name: 'semester_id', type: 'UUID', constraint: 'FK -> semesters.id', description: 'Registered semester' },
+      { name: 'subject_id', type: 'UUID', constraint: 'FK -> subjects.id', description: 'Registered subject' },
+    ],
+  },
+  {
+    name: 'attendance',
+    category: 'academic',
+    description: 'Daily classroom attendance records marked by authorized faculty',
+    rlsOverview: 'Students read own attendance; Faculty & Admins log and manage sessions.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Attendance record ID' },
+      { name: 'subject_id', type: 'UUID', constraint: 'FK -> subjects.id', description: 'Subject session' },
+      { name: 'student_id', type: 'UUID', constraint: 'FK -> students.id', description: 'Attending student' },
+      { name: 'faculty_id', type: 'UUID', constraint: 'FK -> faculty.id', description: 'Logging instructor' },
+      { name: 'date', type: 'DATE', constraint: 'DEFAULT CURRENT_DATE', description: 'Class date' },
+      { name: 'status', type: 'attendance_status', constraint: 'present | absent | excused', description: 'Attendance flag' },
+    ],
+  },
+  {
+    name: 'examinations',
+    category: 'exam',
+    description: 'University examination instances (Regular, Supplementary, Improvement)',
+    rlsOverview: 'All authenticated users can view active exams; Admins schedule examination cycles.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Examination cycle ID' },
+      { name: 'name', type: 'VARCHAR(150)', constraint: 'NOT NULL', description: 'e.g., "End-Term Winter 2026"' },
+      { name: 'session_id', type: 'UUID', constraint: 'FK -> academic_sessions.id', description: 'Academic session' },
+      { name: 'exam_type', type: 'VARCHAR(30)', constraint: 'regular | supplementary | improvement', description: 'Exam category' },
+      { name: 'start_date', type: 'DATE', constraint: 'NOT NULL', description: 'Commencement date' },
+      { name: 'end_date', type: 'DATE', constraint: 'NOT NULL', description: 'Conclusion date' },
+    ],
+  },
+  {
+    name: 'exam_schedules',
+    category: 'exam',
+    description: 'Timetables with date, start time, end time, and Dean approval workflow state',
+    rlsOverview: 'Students view only published schedules; Deans review & approve; Admins manage drafts.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Schedule unique ID' },
+      { name: 'examination_id', type: 'UUID', constraint: 'FK -> examinations.id', description: 'Parent exam cycle' },
+      { name: 'subject_id', type: 'UUID', constraint: 'FK -> subjects.id', description: 'Subject to be examined' },
+      { name: 'exam_date', type: 'DATE', constraint: 'NOT NULL', description: 'Date of examination' },
+      { name: 'start_time', type: 'TIME', constraint: 'NOT NULL', description: 'Exam start time' },
+      { name: 'end_time', type: 'TIME', constraint: 'NOT NULL', description: 'Exam finish time' },
+      { name: 'status', type: 'exam_schedule_status', constraint: 'draft | submitted | approved | published', description: 'Approval lifecycle' },
+      { name: 'reviewed_by_dean_id', type: 'UUID', constraint: 'FK -> profiles.id', description: 'Dean who reviewed' },
+    ],
+  },
+  {
+    name: 'exam_forms',
+    category: 'exam',
+    description: 'Student examination eligibility forms and generated admit card numbers',
+    rlsOverview: 'Students view their own form & admit card; Admins verify fee status.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Exam form ID' },
+      { name: 'student_id', type: 'UUID', constraint: 'FK -> students.id', description: 'Candidate' },
+      { name: 'examination_id', type: 'UUID', constraint: 'FK -> examinations.id', description: 'Examination cycle' },
+      { name: 'admit_card_number', type: 'VARCHAR(50)', constraint: 'UNIQUE', description: 'Official Hall Ticket number' },
+      { name: 'status', type: 'VARCHAR(30)', constraint: 'submitted | approved | admit_card_generated', description: 'Verification status' },
+    ],
+  },
+  {
+    name: 'rooms',
+    category: 'exam',
+    description: 'Examination halls with building floor locations and seat capacities',
+    rlsOverview: 'Authenticated users view rooms; Admins manage university halls.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Room unique ID' },
+      { name: 'room_number', type: 'VARCHAR(30)', constraint: 'UNIQUE, NOT NULL', description: 'e.g. "LH-201"' },
+      { name: 'building', type: 'VARCHAR(100)', constraint: 'NOT NULL', description: 'Block / Building' },
+      { name: 'capacity', type: 'INT', constraint: 'NOT NULL, CHECK > 0', description: 'Maximum seat count' },
+    ],
+  },
+  {
+    name: 'seating_arrangements',
+    category: 'exam',
+    description: 'Candidate seat allocations mapped to rooms and exam schedules',
+    rlsOverview: 'Students view own allocated seat; Admins configure room charts.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Seating unique ID' },
+      { name: 'exam_schedule_id', type: 'UUID', constraint: 'FK -> exam_schedules.id', description: 'Target exam slot' },
+      { name: 'room_id', type: 'UUID', constraint: 'FK -> rooms.id', description: 'Assigned examination room' },
+      { name: 'student_id', type: 'UUID', constraint: 'FK -> students.id', description: 'Allocated student' },
+      { name: 'seat_number', type: 'VARCHAR(20)', constraint: 'NOT NULL', description: 'Seat code (e.g., "R1-S04")' },
+    ],
+  },
+  {
+    name: 'faculty_exam_duties',
+    category: 'exam',
+    description: 'Invigilation duty assignments for faculty members',
+    rlsOverview: 'Faculty view their assigned duties; Admins assign invigilator rosters.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Duty unique ID' },
+      { name: 'exam_schedule_id', type: 'UUID', constraint: 'FK -> exam_schedules.id', description: 'Examination timetable' },
+      { name: 'faculty_id', type: 'UUID', constraint: 'FK -> faculty.id', description: 'Assigned faculty' },
+      { name: 'duty_role', type: 'VARCHAR(50)', constraint: 'invigilator | reliever | chief_superintendent', description: 'Invigilation rank' },
+    ],
+  },
+  {
+    name: 'marks',
+    category: 'results',
+    description: 'Internal and external marks entered by faculty with automated sum & grade points',
+    rlsOverview: 'Faculty edit marks for assigned subjects; Admins verify; Students view only verified.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Marks record ID' },
+      { name: 'student_id', type: 'UUID', constraint: 'FK -> students.id', description: 'Student' },
+      { name: 'subject_id', type: 'UUID', constraint: 'FK -> subjects.id', description: 'Subject' },
+      { name: 'internal_marks', type: 'NUMERIC(5,2)', constraint: 'NOT NULL', description: 'Continuous assessment score' },
+      { name: 'external_marks', type: 'NUMERIC(5,2)', constraint: 'NOT NULL', description: 'End-semester exam score' },
+      { name: 'total_marks', type: 'NUMERIC(5,2)', constraint: 'GENERATED STORED', description: 'Auto-calculated sum' },
+      { name: 'status', type: 'marks_status', constraint: 'draft | submitted | verified', description: 'Marks entry workflow' },
+    ],
+  },
+  {
+    name: 'results',
+    category: 'results',
+    description: 'Semester grade sheet summaries with calculated SGPA and CGPA scores',
+    rlsOverview: 'Students view only published results; Deans approve results; Admins manage publishing.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Result summary ID' },
+      { name: 'student_id', type: 'UUID', constraint: 'FK -> students.id', description: 'Student recipient' },
+      { name: 'sgpa', type: 'NUMERIC(4,2)', constraint: 'NOT NULL', description: 'Semester Grade Point Average (0.00-10.00)' },
+      { name: 'cgpa', type: 'NUMERIC(4,2)', constraint: 'NOT NULL', description: 'Cumulative Grade Point Average' },
+      { name: 'result_status', type: 'result_status', constraint: 'draft | pending_approval | approved | published', description: 'Dean authorization status' },
+      { name: 'approved_by_dean_id', type: 'UUID', constraint: 'FK -> profiles.id', description: 'Dean approver reference' },
+    ],
+  },
+  {
+    name: 'result_subjects',
+    category: 'results',
+    description: 'Subject-wise letter grade and grade point breakdowns for result transcripts',
+    rlsOverview: 'Authenticated users view result transcripts once published.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Result subject ID' },
+      { name: 'result_id', type: 'UUID', constraint: 'FK -> results.id', description: 'Parent result record' },
+      { name: 'subject_id', type: 'UUID', constraint: 'FK -> subjects.id', description: 'Course' },
+      { name: 'grade', type: 'VARCHAR(5)', constraint: 'NOT NULL', description: 'Letter grade (O, A+, A, B+, B, C, F)' },
+      { name: 'grade_point', type: 'NUMERIC(3,1)', constraint: 'NOT NULL', description: 'Grade point (10, 9, 8, 7, 6, 5, 0)' },
+      { name: 'is_passed', type: 'BOOLEAN', constraint: 'NOT NULL', description: 'Subject pass flag' },
+    ],
+  },
+  {
+    name: 'notices',
+    category: 'system',
+    description: 'University examination circulars, announcements, and notices',
+    rlsOverview: 'All authenticated users view notices; Admins & Deans publish.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Notice unique ID' },
+      { name: 'title', type: 'VARCHAR(255)', constraint: 'NOT NULL', description: 'Circular subject heading' },
+      { name: 'content', type: 'TEXT', constraint: 'NOT NULL', description: 'Full notice text' },
+      { name: 'target_audience', type: 'VARCHAR(30)', constraint: 'all | students | faculty | administrators | deans', description: 'Audience filter' },
+      { name: 'author_id', type: 'UUID', constraint: 'FK -> profiles.id', description: 'Publisher profile' },
+      { name: 'is_pinned', type: 'BOOLEAN', constraint: 'DEFAULT FALSE', description: 'Pin to top of portal' },
+    ],
+  },
+  {
+    name: 'audit_logs',
+    category: 'system',
+    description: 'Immutable system audit trails tracking sensitive examination & mark actions',
+    rlsOverview: 'Admins and Deans have read access; App triggers append audit events.',
+    columns: [
+      { name: 'id', type: 'UUID', constraint: 'PK', description: 'Audit event ID' },
+      { name: 'user_id', type: 'UUID', constraint: 'FK -> profiles.id', description: 'Action performer' },
+      { name: 'role', type: 'VARCHAR(50)', description: 'Actor role at timestamp' },
+      { name: 'action', type: 'VARCHAR(100)', constraint: 'NOT NULL', description: 'e.g., "SCHEDULE_APPROVED", "MARKS_SUBMITTED"' },
+      { name: 'entity_type', type: 'VARCHAR(100)', constraint: 'NOT NULL', description: 'e.g., "exam_schedules", "results"' },
+      { name: 'description', type: 'TEXT', constraint: 'NOT NULL', description: 'Audit details & context' },
+      { name: 'created_at', type: 'TIMESTAMPTZ', constraint: 'DEFAULT NOW()', description: 'Timestamp' },
+    ],
+  },
+];

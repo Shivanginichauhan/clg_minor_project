@@ -1,0 +1,791 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --ueams-primary: #0A192F;
+    --ueams-secondary: #1E5AA8;
+    --ueams-gold: #C59B27;
+    --ueams-gold-light: #FDF6E2;
+    --ueams-gold-dark: #996515;
+    --ueams-bg: #F8FAFC;
+    --ueams-card: #FFFFFF;
+    --ueams-text: #0F172A;
+    --ueams-muted: #64748B;
+    --ueams-border: #E2E8F0;
+    --ueams-success: #059669;
+    --ueams-warning: #D97706;
+    --ueams-danger: #DC2626;
+  }
+
+  body {
+    background-color: #F8FAFC;
+    color: #0F172A;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-image: 
+      radial-gradient(#CBD5E1 0.75px, transparent 0.75px),
+      radial-gradient(#F1F5F9 0.75px, #F8FAFC 0.75px);
+    background-size: 30px 30px;
+    background-position: 0 0, 15px 15px;
+  }
+
+  /* Academic Typography Utilities */
+  .font-academic-serif {
+    font-family: 'Cinzel', Georgia, serif;
+    letter-spacing: 0.04em;
+  }
+
+  .font-academic-sans {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  .font-academic-display {
+    font-family: 'Outfit', sans-serif;
+  }
+
+  .font-academic-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Custom subtle academic scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #F1F5F9;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
+  }
+}
+
+/* Institutional Academic UI Components - Tactile 3D Cards */
+.academic-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-bottom: 3px solid #CBD5E1;
+  border-radius: 1rem;
+  box-shadow: 0 6px 20px -4px rgba(15, 23, 42, 0.05), inset 0 1px 0 #FFFFFF;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.academic-card:hover {
+  border-color: #94A3B8;
+  border-bottom-color: #64748B;
+  box-shadow: 0 16px 32px -6px rgba(15, 39, 71, 0.11), inset 0 1px 0 #FFFFFF;
+  transform: translateY(-3px) scale(1.002);
+}
+
+.academic-card:active {
+  transform: translateY(1px);
+  border-bottom-width: 2px;
+}
+
+.academic-card-gold-accent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #996515, #D4AF37, #F3C64F, #996515);
+}
+
+.academic-hero {
+  background: linear-gradient(135deg, #071228 0%, #0F2747 60%, #163B6E 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.academic-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(212, 175, 55, 0.12) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+}
+
+.gold-foil-text {
+  background: linear-gradient(135deg, #D4AF37 0%, #F5DEB3 50%, #C59B27 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.badge-gold {
+  background-color: #FFFBEB;
+  color: #92400E;
+  border: 1px solid #FCD34D;
+}
+
+.badge-navy {
+  background-color: #F0F4F8;
+  color: #0F2747;
+  border: 1px solid #CBD5E1;
+}
+
+/* Seal & Watermark Ambient Glow */
+.seal-glow {
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.25);
+}
+
+/* ==============================================================================
+   TACTILE 3D DESIGN SYSTEM - CARDS, BUTTONS & ELEVATIONS
+   ============================================================================== */
+
+/* ── 3D TACTILE BUTTONS ──────────────────────────────────────────────────────── */
+.btn-3d-primary {
+  background: linear-gradient(180deg, #1E5AA8 0%, #0F2747 100%);
+  border: 1px solid #1E5AA8;
+  border-bottom: 4px solid #08172C;
+  border-radius: 0.875rem;
+  box-shadow: 0 4px 14px rgba(15, 39, 71, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  color: #FFFFFF !important;
+  font-weight: 700;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-3d-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(30, 90, 168, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  filter: brightness(1.05);
+}
+.btn-3d-primary:active {
+  transform: translateY(2px) !important;
+  border-bottom-width: 1px !important;
+  box-shadow: 0 2px 4px rgba(15, 39, 71, 0.3), inset 0 2px 4px rgba(0, 0, 0, 0.25) !important;
+}
+
+.btn-3d-secondary {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+  border: 1px solid #CBD5E1;
+  border-bottom: 4px solid #94A3B8;
+  border-radius: 0.875rem;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05), inset 0 1px 0 #FFFFFF;
+  color: #0F2747 !important;
+  font-weight: 700;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-3d-secondary:hover {
+  transform: translateY(-2px);
+  border-color: #94A3B8;
+  border-bottom-color: #64748B;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1), inset 0 1px 0 #FFFFFF;
+}
+.btn-3d-secondary:active {
+  transform: translateY(2px) !important;
+  border-bottom-width: 1px !important;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1), inset 0 2px 4px rgba(0, 0, 0, 0.08) !important;
+}
+
+.btn-3d-gold {
+  background: linear-gradient(180deg, #F59E0B 0%, #D97706 100%);
+  border: 1px solid #FBBF24;
+  border-bottom: 4px solid #92400E;
+  border-radius: 0.875rem;
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  color: #FFFFFF !important;
+  font-weight: 700;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-3d-gold:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(217, 119, 6, 0.42);
+  filter: brightness(1.05);
+}
+.btn-3d-gold:active {
+  transform: translateY(2px) !important;
+  border-bottom-width: 1px !important;
+  box-shadow: 0 2px 4px rgba(146, 64, 14, 0.35), inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+.btn-3d-emerald {
+  background: linear-gradient(180deg, #10B981 0%, #059669 100%);
+  border: 1px solid #34D399;
+  border-bottom: 4px solid #065F46;
+  border-radius: 0.875rem;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  color: #FFFFFF !important;
+  font-weight: 700;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-3d-emerald:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(5, 150, 105, 0.4);
+  filter: brightness(1.05);
+}
+.btn-3d-emerald:active {
+  transform: translateY(2px) !important;
+  border-bottom-width: 1px !important;
+  box-shadow: 0 2px 4px rgba(6, 95, 70, 0.3), inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+.btn-3d-danger {
+  background: linear-gradient(180deg, #EF4444 0%, #DC2626 100%);
+  border: 1px solid #F87171;
+  border-bottom: 4px solid #991B1B;
+  border-radius: 0.875rem;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  color: #FFFFFF !important;
+  font-weight: 700;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-3d-danger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(220, 38, 38, 0.4);
+  filter: brightness(1.05);
+}
+.btn-3d-danger:active {
+  transform: translateY(2px) !important;
+  border-bottom-width: 1px !important;
+  box-shadow: 0 2px 4px rgba(153, 27, 27, 0.3), inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* ── 3D ELEVATED CARDS ───────────────────────────────────────────────────────── */
+.card-3d {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-bottom: 3px solid #CBD5E1;
+  border-radius: 1.25rem;
+  box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.05), 0 4px 10px -2px rgba(15, 23, 42, 0.03);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+.card-3d:hover {
+  transform: translateY(-5px) scale(1.004);
+  border-color: #94A3B8;
+  border-bottom-color: #64748B;
+  box-shadow: 0 22px 40px -8px rgba(15, 39, 71, 0.13), 0 10px 18px -4px rgba(15, 39, 71, 0.06);
+}
+
+.card-3d-dark {
+  background: linear-gradient(145deg, #0B1E38 0%, #061122 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: 4px solid rgba(0, 0, 0, 0.7);
+  border-radius: 1.5rem;
+  box-shadow: 0 20px 45px -5px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  color: #FFFFFF;
+  position: relative;
+  overflow: hidden;
+}
+.card-3d-dark:hover {
+  transform: translateY(-6px);
+  border-color: rgba(197, 155, 39, 0.45);
+  border-bottom-color: rgba(197, 155, 39, 0.3);
+  box-shadow: 0 28px 55px -10px rgba(15, 39, 71, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.card-3d-interactive {
+  cursor: pointer;
+  user-select: none;
+}
+.card-3d-interactive:active {
+  transform: translateY(-1px) scale(0.995);
+}
+
+/* ── 3D STAT TILES & DIGITAL BOXES ───────────────────────────────────────────── */
+.stat-box-3d {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+  border: 1px solid #E2E8F0;
+  border-bottom: 3px solid #CBD5E1;
+  border-radius: 1rem;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04), inset 0 1px 0 #FFFFFF;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.stat-box-3d:hover {
+  transform: translateY(-3px);
+  border-color: #94A3B8;
+  border-bottom-color: #1E5AA8;
+  box-shadow: 0 10px 22px rgba(15, 39, 71, 0.08), inset 0 1px 0 #FFFFFF;
+}
+
+.badge-3d {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 0.625rem;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* Dark mode override for .glass (HomePage sticky header) */
+html.dark .glass {
+  background: rgba(15, 31, 53, 0.97) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom-color: #1e3a5f !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROFESSIONAL DARK MODE — High Contrast, University Grade
+   Palette: Deep navy backgrounds + near-white text + gold accents
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.dark {
+  color-scheme: dark;
+}
+
+/* ── CATCH-ALL ROOT COLOR RESET ─────────────────────────────────────────
+   The root div and all page wrappers often carry hardcoded dark text like
+   text-[#172033]. Setting color on #root makes all children inherit light
+   text unless explicitly overridden by a specific rule below.
+   ─────────────────────────────────────────────────────────────────────── */
+html.dark #root,
+html.dark #root > div,
+html.dark #root > div > div {
+  color: #e2e8f0 !important;
+}
+
+/* ── ALL HARDCODED BRAND DARK TEXT → LIGHT ───────────────────────────── */
+/* Every unique text-[#hex] found via static analysis of /src components */
+html.dark .text-\[\#172033\],
+html.dark .text-\[\#0F2747\],
+html.dark .text-\[\#0A192F\],
+html.dark .text-\[\#071326\],
+html.dark .text-\[\#0F172A\] {
+  color: #e2e8f0 !important;
+}
+html.dark .text-\[\#1E5AA8\] {
+  color: #60a5fa !important;
+}
+html.dark .text-\[\#64748B\] {
+  color: #94a3b8 !important;
+}
+html.dark .text-\[\#C59B27\],
+html.dark .text-\[\#D97706\] {
+  color: #fbbf24 !important;
+}
+html.dark .text-\[\#16A34A\] {
+  color: #4ade80 !important;
+}
+html.dark .text-\[\#DC2626\] {
+  color: #f87171 !important;
+}
+
+/* ── ALL HARDCODED LIGHT BACKGROUNDS → DARK ─────────────────────────── */
+html.dark .bg-\[\#F8FAFC\],
+html.dark .bg-\[\#F5F7FA\],
+html.dark .bg-\[\#F1F5F9\],
+html.dark .bg-\[\#FAFAFA\] {
+  background-color: #0f172a !important;
+}
+html.dark .bg-\[\#FFFFFF\],
+html.dark .bg-\[\#ffffff\] {
+  background-color: #1e293b !important;
+}
+html.dark .bg-\[\#FFFBEB\],
+html.dark .bg-\[\#FDF6E2\] {
+  background-color: #1c1a0a !important;
+}
+html.dark .bg-\[\#F0F4F8\] {
+  background-color: #1a2a40 !important;
+}
+/* Already dark backgrounds — leave them alone (they look good in dark mode) */
+/* bg-[#070F1C], bg-[#071326], bg-[#0B192C], bg-[#0F2747], bg-[#0f2040], bg-[#1E5AA8] */
+
+/* ── BORDER HEX COLORS ────────────────────────────────────────────────── */
+html.dark .border-\[\#E2E8F0\],
+html.dark .border-\[\#CBD5E1\],
+html.dark .border-\[\#D1D5DB\] {
+  border-color: #1e3a5f !important;
+}
+
+/* ── 1. BODY & PAGE BACKGROUND ─────────────────────────────────────────── */
+html.dark body {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+  background-image:
+    radial-gradient(rgba(99, 130, 180, 0.07) 0.75px, transparent 0.75px),
+    radial-gradient(rgba(30, 58, 100, 0.35) 0.75px, #0f172a 0.75px) !important;
+}
+
+/* ── 2. GLOBAL HEADER ───────────────────────────────────────────────────── */
+html.dark #ueams-global-header {
+  background-color: #0f1f35 !important;
+  border-bottom-color: #1e3a5f !important;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.5) !important;
+}
+
+
+
+/* ── 3. BUTTONS IN DARK MODE ────────────────────────────────────────────── */
+html.dark .btn-3d-secondary {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
+  border-color: #2a4a78 !important;
+  border-bottom: 4px solid #1a3870 !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+html.dark .btn-3d-secondary:hover {
+  background: linear-gradient(180deg, #243550 0%, #172037 100%) !important;
+  border-color: #3b6fba !important;
+  border-bottom-color: #2a5a9f !important;
+  color: #ffffff !important;
+}
+html.dark .btn-3d-secondary * {
+  color: #f1f5f9 !important;
+}
+html.dark .btn-3d-secondary svg {
+  color: #60a5fa !important;
+}
+
+/* ── HOMEPAGE SECTIONS & GRADIENTS IN DARK MODE ────────────────────────── */
+html.dark #overview,
+html.dark #portals,
+html.dark #verify,
+html.dark #lifecycle,
+html.dark #notices,
+html.dark #faqs {
+  background-color: #0f172a !important;
+  border-color: #1e3a5f !important;
+}
+html.dark #overview > div.bg-gradient-to-br,
+html.dark #verify > div.bg-gradient-to-br {
+  background-image: none !important;
+  background-color: #0f172a !important;
+}
+html.dark .bg-gradient-to-b.from-white,
+html.dark .bg-gradient-to-br.from-white,
+html.dark .bg-gradient-to-r.from-blue-50 {
+  background-image: none !important;
+  background-color: #1e293b !important;
+}
+html.dark .animate-shimmer {
+  background: linear-gradient(90deg, #f1f5f9 25%, #60a5fa 50%, #f1f5f9 75%) !important;
+  background-size: 200% auto !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+html.dark .gradient-text {
+  background: linear-gradient(135deg, #60a5fa 0%, #93c5fd 50%, #38bdf8 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+
+/* White backgrounds → dark card */
+html.dark .bg-white {
+  background-color: #1e293b !important;
+}
+html.dark .bg-white\/95,
+html.dark .bg-white\/90 {
+  background-color: rgba(30, 41, 59, 0.97) !important;
+}
+html.dark .bg-slate-50 {
+  background-color: #1e2d42 !important;
+}
+html.dark .bg-slate-100 {
+  background-color: #243550 !important;
+}
+html.dark .bg-slate-200 {
+  background-color: #2a3f5e !important;
+}
+
+/* ── 4. TEXT COLORS — Comprehensive override ─────────────────────────── */
+/* Primary dark text → bright */
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700 {
+  color: #f1f5f9 !important;
+}
+html.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+html.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+html.dark .text-slate-400 {
+  color: #64748b !important;
+}
+/* Brand navy text → near white */
+html.dark .text-\[\#0F2747\],
+html.dark .text-\[\#0A192F\],
+html.dark .text-\[\#071326\] {
+  color: #f1f5f9 !important;
+}
+html.dark .text-\[\#64748B\] {
+  color: #94a3b8 !important;
+}
+/* General fallback: text elements get light color in dark mode */
+html.dark p,
+html.dark span,
+html.dark label,
+html.dark li,
+html.dark dt,
+html.dark dd {
+  color: #e2e8f0;
+}
+html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6 {
+  color: #f8fafc !important;
+}
+
+/* ── 5. BORDERS ─────────────────────────────────────────────────────────── */
+html.dark .border-slate-200,
+html.dark .border-slate-200\/80,
+html.dark .border-slate-200\/90,
+html.dark .border-slate-300 {
+  border-color: #1e3a5f !important;
+}
+html.dark .border-slate-100 {
+  border-color: #1a3050 !important;
+}
+html.dark .divide-slate-200 > * + * {
+  border-color: #1e3a5f !important;
+}
+
+/* ── 6. ACADEMIC CARDS & STAT BOXES ─────────────────────────────────────── */
+html.dark .academic-card,
+html.dark .card-3d,
+html.dark .stat-box-3d {
+  background: linear-gradient(145deg, #1e293b 0%, #172037 100%) !important;
+  border-color: #2a4a78 !important;
+  border-bottom-color: #1a3870 !important;
+  color: #e2e8f0 !important;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.04) !important;
+}
+html.dark .academic-card:hover,
+html.dark .card-3d:hover,
+html.dark .stat-box-3d:hover {
+  background: linear-gradient(145deg, #243550 0%, #1e2d42 100%) !important;
+  border-color: #3b6fba !important;
+  border-bottom-color: #2a5a9f !important;
+  box-shadow: 0 20px 40px -8px rgba(0, 20, 60, 0.6) !important;
+}
+
+/* ── 7. HOVER INTERACTIONS ───────────────────────────────────────────────── */
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-slate-50:hover {
+  background-color: #243550 !important;
+}
+
+/* ── 8. SIDEBAR (already dark, just deepen it) ──────────────────────────── */
+html.dark aside {
+  background-color: #060f1e !important;
+  border-right-color: #1a3050 !important;
+}
+/* Sidebar active item */
+html.dark .bg-\[\#0B1E38\] {
+  background-color: #060f1e !important;
+}
+
+/* ── 9. DROPDOWN MENUS & MODALS ─────────────────────────────────────────── */
+html.dark .z-50.bg-white,
+html.dark .z-40.bg-white,
+html.dark .shadow-xl.bg-white,
+html.dark .shadow-2xl.bg-white {
+  background-color: #1e293b !important;
+  border-color: #2a4a78 !important;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.7) !important;
+}
+
+/* ── 10. TABLES ─────────────────────────────────────────────────────────── */
+html.dark table {
+  background-color: #1e293b !important;
+}
+html.dark thead, html.dark thead tr, html.dark thead th {
+  background-color: #0f1f35 !important;
+  color: #94a3b8 !important;
+  border-color: #1e3a5f !important;
+}
+html.dark tbody tr {
+  background-color: #1e293b !important;
+  border-color: #1e3a5f !important;
+}
+html.dark tbody tr:nth-child(even) {
+  background-color: #1a2a40 !important;
+}
+html.dark tbody tr:hover {
+  background-color: #243550 !important;
+}
+html.dark td {
+  color: #e2e8f0 !important;
+  border-color: #1e3a5f !important;
+}
+html.dark th {
+  color: #94a3b8 !important;
+  border-color: #1e3a5f !important;
+}
+
+/* ── 11. FORM INPUTS ─────────────────────────────────────────────────────── */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.dark textarea,
+html.dark select {
+  background-color: #0f172a !important;
+  border-color: #2a4a78 !important;
+  color: #f1f5f9 !important;
+  caret-color: #60a5fa;
+}
+html.dark input:not([type="checkbox"]):not([type="radio"]):focus,
+html.dark textarea:focus,
+html.dark select:focus {
+  border-color: #3b82f6 !important;
+  outline-color: rgba(59, 130, 246, 0.3) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #475569 !important;
+}
+html.dark select option {
+  background-color: #1e293b;
+  color: #f1f5f9;
+}
+
+/* ── 12. SCROLLBAR ───────────────────────────────────────────────────────── */
+html.dark ::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* ── 13. STATUS BADGES & ACCENTS — HIGH CONTRAST IN DARK MODE ────────────── */
+/* Blue badges */
+html.dark .bg-blue-50,
+html.dark [class*="bg-blue-50"] {
+  background-color: rgba(30, 90, 168, 0.22) !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+}
+html.dark .text-blue-600,
+html.dark .text-blue-700,
+html.dark .text-blue-800,
+html.dark .text-blue-900,
+html.dark .text-\[\#1E5AA8\] {
+  color: #60a5fa !important;
+}
+
+/* Emerald / Green badges */
+html.dark .bg-emerald-50,
+html.dark [class*="bg-emerald-50"] {
+  background-color: rgba(16, 185, 129, 0.18) !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+html.dark .text-emerald-600,
+html.dark .text-emerald-700,
+html.dark .text-emerald-800,
+html.dark .text-emerald-900,
+html.dark .text-\[\#16A34A\] {
+  color: #34d399 !important;
+}
+
+/* Amber / Gold badges */
+html.dark .bg-amber-50,
+html.dark .bg-\[\#FFFBEB\],
+html.dark [class*="bg-amber-50"] {
+  background-color: rgba(245, 158, 11, 0.18) !important;
+  border-color: rgba(245, 158, 11, 0.35) !important;
+}
+html.dark .text-amber-400,
+html.dark .text-amber-500,
+html.dark .text-amber-600,
+html.dark .text-amber-700,
+html.dark .text-amber-800,
+html.dark .text-amber-900,
+html.dark .text-\[\#C59B27\],
+html.dark .text-\[\#D97706\] {
+  color: #fbbf24 !important;
+}
+
+/* Purple badges */
+html.dark .bg-purple-50,
+html.dark [class*="bg-purple-50"] {
+  background-color: rgba(168, 85, 247, 0.18) !important;
+  border-color: rgba(168, 85, 247, 0.35) !important;
+}
+html.dark .text-purple-600,
+html.dark .text-purple-700,
+html.dark .text-purple-800,
+html.dark .text-purple-900 {
+  color: #c084fc !important;
+}
+
+/* Indigo badges */
+html.dark .bg-indigo-50,
+html.dark [class*="bg-indigo-50"] {
+  background-color: rgba(99, 102, 241, 0.18) !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+}
+html.dark .text-indigo-600,
+html.dark .text-indigo-700,
+html.dark .text-indigo-800,
+html.dark .text-indigo-900 {
+  color: #a5b4fc !important;
+}
+
+/* Rose / Red badges */
+html.dark .bg-rose-50,
+html.dark .bg-red-50,
+html.dark [class*="bg-rose-50"],
+html.dark [class*="bg-red-50"] {
+  background-color: rgba(239, 68, 68, 0.18) !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+}
+html.dark .text-rose-600,
+html.dark .text-rose-700,
+html.dark .text-rose-800,
+html.dark .text-red-600,
+html.dark .text-red-700,
+html.dark .text-\[\#DC2626\] {
+  color: #f87171 !important;
+}
+
+/* 3D Badges and Pill Containers */
+html.dark .badge-3d {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+html.dark .rounded-full.bg-white {
+  background-color: #1e293b !important;
+  border-color: #2a4a78 !important;
+}
+
+/* ── 14. PRINTABLE AREAS — stay white for printing ─────────────────────── */
+html.dark img,
+html.dark video,
+html.dark canvas,
+html.dark #printable-hall-ticket,
+html.dark #printable-hall-ticket * {
+  filter: none !important;
+}
+
+
